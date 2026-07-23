@@ -1,0 +1,15 @@
+{
+  "name": "bot-paris-discord",
+  "version": "3.0.0",
+  "description": "Bot Discord de paris personnalisés avec monnaie virtuelle, niveaux et statistiques",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "deploy": "node deploy-commands.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5"
+  }
+}
