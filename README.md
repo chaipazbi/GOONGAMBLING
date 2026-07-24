@@ -102,6 +102,23 @@ sudo systemctl restart bot-paris
 | `ui.js` | Embeds et boutons |
 | `scheduler.js` | Collecte automatique du daily |
 
+## 🌍 Utilisation sur plusieurs serveurs
+
+Chaque serveur a son **économie totalement séparée** : soldes, XP, statistiques
+et numérotation des paris repartent de zéro sur un nouveau serveur. Personne ne
+peut transporter ses pièces d'un serveur à l'autre, et un admin d'un autre
+serveur ne peut pas influencer le tien.
+
+Pour ouvrir le bot à d'autres serveurs :
+1. Vider la ligne `GUILD_ID=` dans `.env` (garde `MAIN_GUILD_ID` renseigné).
+2. `npm run deploy` — les commandes deviennent globales (jusqu'à 1h de
+   propagation la première fois).
+3. Developer Portal → onglet **Bot** → activer **Public Bot**.
+4. Partager le lien OAuth2 (scopes `bot` + `applications.commands`).
+
+> À partir de **100 serveurs**, Discord impose une vérification du bot.
+> Et si l'usage grossit beaucoup, il faudra passer de `data.json` à SQLite.
+
 ## ⚠️ Notes
 - Sauvegarde `data.json` régulièrement.
 - Ne partage jamais ton `.env` ni ton token.

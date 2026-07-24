@@ -1,4 +1,4 @@
-// Système de niveaux / XP et statistiques joueur.
+// Niveaux / XP et statistiques, cloisonnés par serveur.
 import { ensureUser, save, allUsers } from './store.js';
 
 // XP cumulée nécessaire pour ATTEINDRE un niveau.
@@ -17,16 +17,11 @@ export function levelProgress(xp) {
   const level = levelFromXp(xp);
   const floorXp = xpToReach(level);
   const nextXp = xpToReach(level + 1);
-  return {
-    level,
-    into: xp - floorXp,          // XP acquise dans le niveau courant
-    span: nextXp - floorXp,      // XP totale du niveau courant
-    remaining: nextXp - xp,
-  };
+  return { level, into: xp - floorXp, span: nextXp - floorXp, remaining: nextXp - xp };
 }
 
-export function addXp(userId, amount) {
-  const u = ensureUser(userId);
+export function addXp(guildId, userId, amount) {
+  const u = ensureUser(guildId, userId);
   const before = levelFromXp(u.xp);
   u.xp = Math.max(0, u.xp + amount);
   const after = levelFromXp(u.xp);
@@ -34,8 +29,8 @@ export function addXp(userId, amount) {
   return { gained: amount, xp: u.xp, level: after, levelUp: after > before };
 }
 
-export function setXp(userId, total) {
-  const u = ensureUser(userId);
+export function setXp(guildId, userId, total) {
+  const u = ensureUser(guildId, userId);
   u.xp = Math.max(0, total);
   save();
   return u.xp;
@@ -58,11 +53,9 @@ export function ratioWL(stats) {
   return (stats.betsWon / stats.betsLost).toFixed(2);
 }
 
-export function leaderboard(kind = 'coins', limit = 10) {
-  const users = allUsers();
+export function leaderboard(guildId, kind = 'coins', limit = 10) {
+  const users = allUsers(guildId);
   const sorted =
-    kind === 'xp'
-      ? users.sort((a, b) => b.xp - a.xp)
-      : users.sort((a, b) => b.balance - a.balance);
+    kind === 'xp' ? users.sort((a, b) => b.xp - a.xp) : users.sort((a, b) => b.balance - a.balance);
   return sorted.slice(0, limit);
 }

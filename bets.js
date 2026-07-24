@@ -1,21 +1,23 @@
 // Logique des paris : cotes, mises, clôture, correction du résultat.
+// Chaque pari appartient à un serveur (bet.guildId) et sa numérotation
+// repart de #1 sur chaque serveur.
 import { config } from './config.js';
-import { getData, save, ensureUser, nextBetId } from './store.js';
+import { save, ensureUser, nextBetId, guildBets } from './store.js';
 import { addBalance } from './economy.js';
 import { addXp } from './levels.js';
 
-export function getBet(id) {
-  return getData().bets[id] || null;
+export function getBet(guildId, id) {
+  return guildBets(guildId)[id] || null;
 }
 
 export function listBets(guildId, status = null) {
-  return Object.values(getData().bets)
-    .filter((b) => b.guildId === guildId && (status ? b.status === status : true))
+  return Object.values(guildBets(guildId))
+    .filter((b) => (status ? b.status === status : true))
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export function createBet({ title, options, creatorId, guildId }) {
-  const id = nextBetId();
+  const id = nextBetId(guildId);
   const bet = {
     id,
     title,
@@ -30,23 +32,19 @@ export function createBet({ title, options, creatorId, guildId }) {
     wagers: [],
     settlement: null,
   };
-  getData().bets[id] = bet;
+  guildBets(guildId)[id] = bet;
   save();
   return bet;
 }
 
-export function setBetMessage(id, channelId, messageId) {
-  const bet = getBet(id);
-  if (!bet) return null;
+export function setBetMessage(bet, channelId, messageId) {
   bet.channelId = channelId;
   bet.messageId = messageId;
   save();
   return bet;
 }
 
-export function setStatus(id, status) {
-  const bet = getBet(id);
-  if (!bet) return null;
+export function setStatus(bet, status) {
   bet.status = status;
   save();
   return bet;
@@ -69,10 +67,6 @@ export function totalPool(bet) {
   return Object.values(pools(bet)).reduce((a, b) => a + b, 0);
 }
 
-export function playerPool(bet) {
-  return bet.wagers.reduce((s, w) => s + w.amount, 0);
-}
-
 export function odds(bet, option) {
   const p = pools(bet);
   const total = totalPool(bet);
@@ -91,10 +85,10 @@ export function placeWager(bet, userId, option, amount) {
   if (bet.status !== 'open') return { ok: false, reason: 'ferme' };
   if (amount < config.minWager) return { ok: false, reason: 'min' };
 
-  const other = bet.wagers.find((w) => w.userId === userId && w.option !== option);
-  if (other) return { ok: false, reason: 'autre_option', option: other.option };
+  const autre = bet.wagers.find((w) => w.userId === userId && w.option !== option);
+  if (autre) return { ok: false, reason: 'autre_option', option: autre.option };
 
-  const u = ensureUser(userId);
+  const u = ensureUser(bet.guildId, userId);
   if (u.balance < amount) return { ok: false, reason: 'solde' };
 
   const premiereFois = !bet.wagers.some((w) => w.userId === userId);
@@ -106,18 +100,13 @@ export function placeWager(bet, userId, option, amount) {
   return { ok: true };
 }
 
-export function userStake(bet, userId, option = null) {
-  return bet.wagers
-    .filter((w) => w.userId === userId && (option === null || w.option === option))
-    .reduce((s, w) => s + w.amount, 0);
-}
-
 // ---------- Clôture ----------
 // Chaque gagnant reçoit : mise x (cagnotte totale / cagnotte gagnante).
 // Tout ce qui est versé est enregistré dans bet.settlement pour pouvoir
 // annuler proprement en cas de correction du résultat.
 
 export function settle(bet, winningOption) {
+  const g = bet.guildId;
   const p = pools(bet);
   const total = totalPool(bet);
   const winPool = p[winningOption];
@@ -130,9 +119,8 @@ export function settle(bet, winningOption) {
     // Personne n'a misé : rien à distribuer.
   } else if (gagnants.length === 0) {
     // Personne sur la bonne issue : on rembourse tout le monde.
-    const parJoueur = groupStakes(bet.wagers);
-    for (const [userId, stake] of Object.entries(parJoueur)) {
-      addBalance(userId, stake);
+    for (const [userId, stake] of Object.entries(groupStakes(bet.wagers))) {
+      addBalance(g, userId, stake);
       entries.push({ userId, coins: stake, xp: 0, kind: 'refund', stake, net: 0 });
     }
   } else {
@@ -144,9 +132,9 @@ export function settle(bet, winningOption) {
       const net = payout - stake;
       const xp = config.xpBetWin + Math.floor(Math.max(0, net) / config.xpPerCoins);
 
-      addBalance(userId, payout);
-      addXp(userId, xp);
-      const u = ensureUser(userId);
+      addBalance(g, userId, payout);
+      addXp(g, userId, xp);
+      const u = ensureUser(g, userId);
       u.stats.betsWon += 1;
       u.stats.totalWon += net;
 
@@ -154,7 +142,7 @@ export function settle(bet, winningOption) {
     }
 
     for (const [userId, stake] of Object.entries(misesPerdantes)) {
-      const u = ensureUser(userId);
+      const u = ensureUser(g, userId);
       u.stats.betsLost += 1;
       u.stats.totalLost += stake;
       entries.push({ userId, coins: 0, xp: 0, kind: 'lose', stake, net: -stake });
@@ -179,7 +167,7 @@ export function unsettle(bet) {
   if (!bet.settlement) return null;
 
   for (const e of bet.settlement.entries) {
-    const u = ensureUser(e.userId);
+    const u = ensureUser(bet.guildId, e.userId);
     u.balance -= e.coins;
     if (e.xp) u.xp = Math.max(0, u.xp - e.xp);
 
@@ -199,7 +187,7 @@ export function unsettle(bet) {
   return ancien;
 }
 
-// Corrige le résultat : annule l'ancienne clôture puis reclôture sur la bonne issue.
+// Corrige le résultat : annule l'ancienne clôture puis reclôture.
 export function resettle(bet, nouvelleOption) {
   unsettle(bet);
   return settle(bet, nouvelleOption);
@@ -211,8 +199,8 @@ export function refundAll(bet) {
 
   const parJoueur = groupStakes(bet.wagers);
   for (const [userId, stake] of Object.entries(parJoueur)) {
-    addBalance(userId, stake);
-    const u = ensureUser(userId);
+    addBalance(bet.guildId, userId, stake);
+    const u = ensureUser(bet.guildId, userId);
     u.stats.betsPlayed = Math.max(0, u.stats.betsPlayed - 1);
     u.stats.totalStaked = Math.max(0, u.stats.totalStaked - stake);
   }

@@ -21,6 +21,7 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 client.once(Events.ClientReady, (c) => {
   console.log(`✅ Connecté en tant que ${c.user.tag}`);
   console.log(`   Monnaie : ${config.currencyName} (${config.currencySymbol})`);
+  console.log(`   Serveurs : ${c.guilds.cache.size}`);
   startScheduler(client);
 });
 
@@ -53,11 +54,17 @@ async function envoyerDansSalon(interaction, bet, payload) {
 
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
+    if (!interaction.guildId) {
+      if (interaction.isRepliable()) {
+        return priv(interaction, "Ce bot s'utilise uniquement sur un serveur.");
+      }
+      return;
+    }
+
     if (interaction.isButton()) return await onButton(interaction);
     if (interaction.isStringSelectMenu()) return await onSelect(interaction);
     if (interaction.isModalSubmit()) return await onModal(interaction);
     if (!interaction.isChatInputCommand()) return;
-    if (!interaction.guildId) return priv(interaction, "Ce bot s'utilise uniquement sur un serveur.");
 
     switch (interaction.commandName) {
       case 'solde':      return await cmdSolde(interaction);
@@ -83,7 +90,7 @@ async function onButton(interaction) {
   const [ns, action, betIdStr, optIdxStr] = interaction.customId.split(':');
   if (ns !== 'pari') return;
 
-  const bet = B.getBet(parseInt(betIdStr, 10));
+  const bet = B.getBet(interaction.guildId, parseInt(betIdStr, 10));
   if (!bet) return priv(interaction, "Ce pari n'existe plus.");
 
   if (action === 'wager') return await ouvrirModalMise(interaction, bet, parseInt(optIdxStr, 10));
@@ -110,7 +117,7 @@ async function ouvrirModalMise(interaction, bet, optIndex) {
     .setCustomId('amount')
     .setLabel(`Montant (cote actuelle ${B.oddsLabel(bet, option)})`.slice(0, 45))
     .setStyle(TextInputStyle.Short)
-    .setPlaceholder(`Solde dispo : ${eco.getBalance(interaction.user.id)}`)
+    .setPlaceholder(`Solde dispo : ${eco.getBalance(interaction.guildId, interaction.user.id)}`)
     .setRequired(true);
 
   modal.addComponents(new ActionRowBuilder().addComponents(input));
@@ -121,7 +128,7 @@ async function verrouiller(interaction, bet) {
   if (!peutGerer(interaction, bet)) return priv(interaction, 'Réservé au créateur du pari ou à un admin.');
   if (bet.status !== 'open') return priv(interaction, "Ce pari n'est pas ouvert.");
 
-  B.setStatus(bet.id, 'closed');
+  B.setStatus(bet, 'closed');
   await majMessage(interaction, bet);
   return priv(interaction, `🔒 Pari #${bet.id} verrouillé — plus aucune mise possible.`);
 }
@@ -162,7 +169,7 @@ async function onSelect(interaction) {
   const [ns, action, betIdStr] = interaction.customId.split(':');
   if (ns !== 'pari' || (action !== 'winner' && action !== 'fixwinner')) return;
 
-  const bet = B.getBet(parseInt(betIdStr, 10));
+  const bet = B.getBet(interaction.guildId, parseInt(betIdStr, 10));
   if (!bet) return interaction.update({ content: "Ce pari n'existe plus.", components: [] });
   if (!peutGerer(interaction, bet)) {
     return interaction.update({ content: "Tu n'as pas la permission.", components: [] });
@@ -209,7 +216,7 @@ async function onModal(interaction) {
   const [ns, action, betIdStr, optIdxStr] = interaction.customId.split(':');
   if (ns !== 'pari' || action !== 'amount') return;
 
-  const bet = B.getBet(parseInt(betIdStr, 10));
+  const bet = B.getBet(interaction.guildId, parseInt(betIdStr, 10));
   if (!bet) return priv(interaction, "Ce pari n'existe plus.");
   if (bet.status !== 'open') return priv(interaction, "Ce pari n'accepte plus de mises.");
 
@@ -218,7 +225,7 @@ async function onModal(interaction) {
 
   const brut = interaction.fields.getTextInputValue('amount').replace(/\s/g, '');
   const userId = interaction.user.id;
-  const solde = eco.getBalance(userId);
+  const solde = eco.getBalance(interaction.guildId, userId);
   const montant = /^(all|tout|max)$/i.test(brut) ? solde : parseInt(brut, 10);
 
   if (!Number.isInteger(montant) || montant <= 0) {
@@ -245,27 +252,28 @@ async function onModal(interaction) {
 // ============ COMMANDES : MONNAIE ============
 
 async function cmdSolde(interaction) {
+  const g = interaction.guildId;
   const cible = interaction.options.getUser('membre') || interaction.user;
-  const solde = eco.getBalance(cible.id);
+  const solde = eco.getBalance(g, cible.id);
   const qui = cible.id === interaction.user.id ? 'Ton solde' : `Solde de ${cible}`;
   return interaction.reply(`${qui} : ${money(solde)}`);
 }
 
 async function cmdDaily(interaction) {
+  const g = interaction.guildId;
   const auto = interaction.options.getString('auto');
   const userId = interaction.user.id;
 
-  // /daily auto:09:00  ou  /daily auto:off
   if (auto) {
     if (/^(off|stop|non|desactiver|désactiver)$/i.test(auto.trim())) {
-      eco.setAutoDaily(userId, null);
+      eco.setAutoDaily(g, userId, null);
       return priv(interaction, '⏰ Collecte automatique désactivée.');
     }
     const heure = eco.parseHeure(auto);
     if (!heure) {
       return priv(interaction, 'Heure invalide. Utilise le format `09:00` (ou `off` pour désactiver).');
     }
-    eco.setAutoDaily(userId, heure);
+    eco.setAutoDaily(g, userId, heure);
     return priv(
       interaction,
       `⏰ Collecte automatique activée à **${heure}** (heure de ${config.timezone}).\n` +
@@ -274,7 +282,7 @@ async function cmdDaily(interaction) {
     );
   }
 
-  const res = eco.claimDaily(userId);
+  const res = eco.claimDaily(g, userId);
   if (!res.ok) {
     const h = Math.floor(res.remaining / 3_600_000);
     const m = Math.floor((res.remaining % 3_600_000) / 60_000);
@@ -287,6 +295,7 @@ async function cmdDaily(interaction) {
 }
 
 async function cmdDonner(interaction) {
+  const g = interaction.guildId;
   const from = interaction.user;
   const to = interaction.options.getUser('membre');
   const montant = interaction.options.getInteger('montant');
@@ -294,53 +303,55 @@ async function cmdDonner(interaction) {
   if (to.id === from.id) return priv(interaction, "Tu ne peux pas te donner de l'argent à toi-même.");
   if (to.bot) return priv(interaction, "Tu ne peux pas donner de l'argent à un bot.");
 
-  const res = eco.transfer(from.id, to.id, montant);
-  if (!res.ok) return priv(interaction, `Solde insuffisant. Tu as ${money(eco.getBalance(from.id))}.`);
+  const res = eco.transfer(g, from.id, to.id, montant);
+  if (!res.ok) return priv(interaction, `Solde insuffisant. Tu as ${money(eco.getBalance(g, from.id))}.`);
 
   return interaction.reply(`💸 ${from} a donné ${money(montant)} à ${to} !`);
 }
 
 async function cmdClassement(interaction) {
   const kind = interaction.options.getString('type') || 'coins';
-  const top = L.leaderboard(kind, 10);
+  const top = L.leaderboard(interaction.guildId, kind, 10);
   return interaction.reply({ embeds: [ui.leaderboardEmbed(top, kind)] });
 }
 
 async function cmdStats(interaction) {
   const cible = interaction.options.getUser('membre') || interaction.user;
   const membre = (await interaction.guild.members.fetch(cible.id).catch(() => null)) || cible;
-  return interaction.reply({ embeds: [ui.profilEmbed(ensureUser(cible.id), membre)] });
+  return interaction.reply({ embeds: [ui.profilEmbed(ensureUser(interaction.guildId, cible.id), membre)] });
 }
 
 async function cmdEco(interaction) {
+  const g = interaction.guildId;
   const sub = interaction.options.getSubcommand();
   const cible = interaction.options.getUser('membre');
   const montant = interaction.options.getInteger('montant');
 
   if (sub === 'ajouter') {
-    const bal = eco.addBalance(cible.id, montant);
+    const bal = eco.addBalance(g, cible.id, montant);
     return interaction.reply(`✅ ${money(montant)} ajoutés à ${cible}. Solde : ${money(bal)}`);
   }
   if (sub === 'retirer') {
-    const bal = eco.setBalance(cible.id, Math.max(0, eco.getBalance(cible.id) - montant));
+    const bal = eco.setBalance(g, cible.id, Math.max(0, eco.getBalance(g, cible.id) - montant));
     return interaction.reply(`✅ ${money(montant)} retirés à ${cible}. Solde : ${money(bal)}`);
   }
   if (sub === 'definir') {
-    const bal = eco.setBalance(cible.id, montant);
+    const bal = eco.setBalance(g, cible.id, montant);
     return interaction.reply(`✅ Solde de ${cible} fixé à ${money(bal)}.`);
   }
 }
 
 async function cmdXp(interaction) {
+  const g = interaction.guildId;
   const sub = interaction.options.getSubcommand();
   const cible = interaction.options.getUser('membre');
   const montant = interaction.options.getInteger('montant');
-  const u = ensureUser(cible.id);
+  const u = ensureUser(g, cible.id);
   const avant = L.levelFromXp(u.xp);
 
-  if (sub === 'ajouter') L.addXp(cible.id, montant);
-  else if (sub === 'retirer') L.addXp(cible.id, -montant);
-  else L.setXp(cible.id, montant);
+  if (sub === 'ajouter') L.addXp(g, cible.id, montant);
+  else if (sub === 'retirer') L.addXp(g, cible.id, -montant);
+  else L.setXp(g, cible.id, montant);
 
   const apres = L.levelFromXp(u.xp);
   const verbe = sub === 'ajouter' ? 'ajoutés à' : sub === 'retirer' ? 'retirés à' : 'fixés pour';
@@ -379,12 +390,13 @@ async function pariCreer(interaction) {
 
   await interaction.reply({ embeds: [ui.betEmbed(bet)], components: ui.betComponents(bet) });
   const msg = await interaction.fetchReply();
-  B.setBetMessage(bet.id, msg.channelId, msg.id);
+  B.setBetMessage(bet, msg.channelId, msg.id);
 }
 
 async function pariListe(interaction) {
-  const ouverts = B.listBets(interaction.guildId, 'open');
-  const verrous = B.listBets(interaction.guildId, 'closed');
+  const g = interaction.guildId;
+  const ouverts = B.listBets(g, 'open');
+  const verrous = B.listBets(g, 'closed');
 
   if (!ouverts.length && !verrous.length) {
     return interaction.reply('Aucun pari en cours. Lance-en un avec `/pari creer` !');

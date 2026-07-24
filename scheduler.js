@@ -1,9 +1,9 @@
-// Collecte automatique du /daily à l'heure choisie par chaque joueur.
+// Collecte automatique du /daily, à l'heure choisie par chaque joueur.
+// Le réglage et le solde sont propres à chaque serveur.
 import { config, money } from './config.js';
 import { getData, save } from './store.js';
 import { claimDaily } from './economy.js';
 
-// Date et heure locales dans le fuseau configuré, sans dépendance externe.
 export function localeNow() {
   const dtf = new Intl.DateTimeFormat('en-CA', {
     timeZone: config.timezone,
@@ -22,29 +22,32 @@ export function localeNow() {
 async function tick(client) {
   const { date, time } = localeNow();
 
-  for (const [userId, u] of Object.entries(getData().users)) {
-    if (!u.autoDaily) continue;
-    if (u.lastAutoDate === date) continue;   // déjà fait aujourd'hui
-    if (time < u.autoDaily) continue;        // pas encore l'heure ("09:00" < "11:30")
+  for (const [guildId, g] of Object.entries(getData().guilds)) {
+    for (const [userId, u] of Object.entries(g.users)) {
+      if (!u.autoDaily) continue;
+      if (u.lastAutoDate === date) continue;   // déjà fait aujourd'hui
+      if (time < u.autoDaily) continue;        // pas encore l'heure
 
-    // Marqué avant la collecte : si le bot était éteint à l'heure prévue,
-    // il rattrape au démarrage, mais une seule fois par jour.
-    u.lastAutoDate = date;
-    save();
+      // Marqué avant la collecte : si le bot était éteint à l'heure prévue,
+      // il rattrape au démarrage, mais une seule fois par jour.
+      u.lastAutoDate = date;
+      save();
 
-    const res = claimDaily(userId, { xp: config.xpDailyAuto });
-    if (!res.ok) continue;
+      const res = claimDaily(guildId, userId, { xp: config.xpDailyAuto });
+      if (!res.ok) continue;
 
-    try {
-      const user = await client.users.fetch(userId);
-      let texte =
-        `🎁 Collecte automatique : tu reçois ${money(res.amount)} et **+${config.xpDailyAuto} XP** !\n` +
-        `Nouveau solde : ${money(res.balance)}`;
-      if (res.xp?.levelUp) texte += `\n🎉 Niveau **${res.xp.level}** atteint !`;
-      texte += `\n_(le \`/daily\` manuel rapporte ${config.xpDaily} XP)_`;
-      await user.send(texte);
-    } catch {
-      // MP fermés : la monnaie est créditée quand même
+      try {
+        const nomServeur = client.guilds.cache.get(guildId)?.name ?? 'ton serveur';
+        let texte =
+          `🎁 Collecte automatique sur **${nomServeur}** : tu reçois ${money(res.amount)} ` +
+          `et **+${config.xpDailyAuto} XP** !\nNouveau solde : ${money(res.balance)}`;
+        if (res.xp?.levelUp) texte += `\n🎉 Niveau **${res.xp.level}** atteint !`;
+        texte += `\n_(le \`/daily\` manuel rapporte ${config.xpDaily} XP)_`;
+        const user = await client.users.fetch(userId);
+        await user.send(texte);
+      } catch {
+        // MP fermés : la monnaie est créditée quand même
+      }
     }
   }
 }
