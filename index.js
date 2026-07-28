@@ -284,9 +284,7 @@ async function cmdDaily(interaction) {
 
   const res = eco.claimDaily(g, userId);
   if (!res.ok) {
-    const h = Math.floor(res.remaining / 3_600_000);
-    const m = Math.floor((res.remaining % 3_600_000) / 60_000);
-    return priv(interaction, `⏳ Déjà récupéré ! Reviens dans **${h}h ${m}min**.`);
+    return priv(interaction, '⏳ Tu as déjà récupéré ton daily aujourd\'hui ! Reviens demain. 🌙');
   }
 
   let msg = `🎁 Tu reçois ${money(res.amount)} et **+${config.xpDaily} XP** ! Nouveau solde : ${money(res.balance)}`;

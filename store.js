@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
+import { dateOf } from './time.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_PATH = process.env.DATA_PATH || path.join(__dirname, 'data.json');
@@ -15,6 +16,7 @@ function defaultUser() {
   return {
     balance: config.startingBalance,
     lastDaily: 0,
+    lastDailyDate: null,
     xp: 0,
     autoDaily: null,
     lastAutoDate: null,
@@ -33,6 +35,9 @@ function migrateUser(u) {
   const d = defaultUser();
   u.balance ??= d.balance;
   u.lastDaily ??= d.lastDaily;
+  // Nouveau modèle : un daily par jour de calendrier (date locale "YYYY-MM-DD").
+  // On dérive la valeur depuis l'ancien lastDaily pour ne pas offrir un daily en trop.
+  u.lastDailyDate ??= dateOf(u.lastDaily);
   u.xp ??= d.xp;
   u.autoDaily ??= d.autoDaily;
   u.lastAutoDate ??= d.lastAutoDate;

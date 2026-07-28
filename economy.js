@@ -2,6 +2,7 @@
 import { config } from './config.js';
 import { ensureUser, save } from './store.js';
 import { addXp } from './levels.js';
+import { today } from './time.js';
 
 export function getBalance(guildId, userId) {
   return ensureUser(guildId, userId).balance;
@@ -30,17 +31,19 @@ export function transfer(guildId, fromId, toId, amount) {
   return { ok: true };
 }
 
-// xp : montant d'XP accordé (le daily manuel en donne plus que la collecte auto).
-export function claimDaily(guildId, userId, { xp = config.xpDaily } = {}) {
+// Un daily par jour de calendrier (fuseau configuré), partagé par le manuel et
+// la collecte auto. xp : montant d'XP accordé (le manuel en donne plus).
+// date : jour de référence (par défaut aujourd'hui) — permet à l'auto de passer
+// le jour exact du tick.
+export function claimDaily(guildId, userId, { xp = config.xpDaily, date = today() } = {}) {
   const u = ensureUser(guildId, userId);
-  const now = Date.now();
-  const elapsed = now - u.lastDaily;
 
-  if (elapsed < config.dailyCooldownMs) {
-    return { ok: false, remaining: config.dailyCooldownMs - elapsed };
+  if (u.lastDailyDate === date) {
+    return { ok: false, already: true };
   }
 
-  u.lastDaily = now;
+  u.lastDailyDate = date;
+  u.lastDaily = Date.now();
   u.balance += config.dailyAmount;
   save();
 
