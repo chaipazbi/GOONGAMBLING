@@ -48,16 +48,16 @@ export const CRATES = [
 // mult = multiplicateur du PRIX de la caisse. 'upgrade' = caisse du rang au-dessus.
 // Gradient : petites récompenses fréquentes, grosses rares. Rien ≈ pièces.
 export const CRATE_REWARDS = [
+  { kind: 'nothing',             p: 0.20 }, // rien (vraie mauvaise pioche)
   { kind: 'coins',   mult: 0.75, p: 0.16 },
   { kind: 'coins',   mult: 0.90, p: 0.15 },
   { kind: 'coins',   mult: 1.00, p: 0.14 }, // remboursement (prix rendu)
   { kind: 'coins',   mult: 1.25, p: 0.13 }, // +25 %
   { kind: 'coins',   mult: 1.50, p: 0.08 }, // +50 %
-  { kind: 'upgrade',             p: 0.05 }, // caisse supérieure (le plus rare)
-  { kind: 'xp',      xp: 10,     p: 0.17 }, // petit gain d'XP
-  { kind: 'xp',      xp: 80,     p: 0.07 }, // gros gain d'XP
-  { kind: 'nothing',             p: 0.05 }, // rien
-];
+  { kind: 'xp',      xp: 10,     p: 0.06 }, // petit gain d'XP
+  { kind: 'upgrade',             p: 0.05 }, // caisse supérieure
+  { kind: 'xp',      xp: 80,     p: 0.03 }, // gros gain d'XP (rare)
+]
 
 // Caisse mythique : pas de rang supérieur → le slot 'upgrade' devient des pièces à +75 %.
 export const MYTHIC_TOP = { kind: 'coins', mult: 1.75 };

@@ -351,8 +351,9 @@ export function cratesInfoEmbed() {
     .setDescription('Le montant est ce que tu **reçois** (ton gain net = montant − prix payé).')
     .setColor(0xe67e22);
 
+  const rewards = [...CRATE_REWARDS].sort((a, b) => b.p - a.p);
   for (const c of CRATES) {
-    const lignes = CRATE_REWARDS.map((o) => {
+    const lignes = rewards.map((o) => {
       const pc = `${(o.p * 100).toFixed(0)}%`.padStart(3);
       if (o.kind === 'coins') return `\`${pc}\` ${Math.floor(c.prix * o.mult)} 🪙`;
       if (o.kind === 'xp') return `\`${pc}\` +${o.xp} XP`;

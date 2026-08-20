@@ -144,15 +144,15 @@ Les caisses achetées vont dans l'**inventaire** (`/inventaire`), où on les ouv
 quand on veut. **Le résultat d'une ouverture est public** dans le salon.
 `/caisses` affiche la table complète des probabilités.
 
-À l'ouverture (probabilités par caisse) : **rien** 5 %, **+10 XP** 17 %,
-**+80 XP** 7 %, pièces < prix (×0.75/×0.90) 31 %, remboursement (×1) 14 %,
-profit (+25 % / +50 %) 21 %, **caisse supérieure** 5 % (ouverte automatiquement
-en chaîne). La mythique n'a pas de rang au-dessus : ce slot devient un gain de
-+75 %.
+À l'ouverture (probabilités par caisse, du plus fréquent au plus rare) :
+**rien** 20 %, pièces < prix (×0.75/×0.90) 31 %, remboursement (×1) 14 %,
+profit (+25 % / +50 %) 21 %, **+10 XP** 6 %, **caisse supérieure** 5 % (ouverte
+automatiquement en chaîne), **+80 XP** 3 %. La mythique n'a pas de rang
+au-dessus : ce slot devient un gain de +75 %.
 
 > ⚖️ **Équilibrage** — pièces : on récupère en moyenne **~74 % de la mise**
-> (~554 pour une Commune à 750) : perte douce, avec de vraies chances de gagner.
-> XP : ~7 par ouverture (~22/jour sur 3 caisses, contre 50 pour le daily) — un
+> (~554 pour une Commune à 750) : perte douce, avec de vraies chances de gagner,
+> et **1 chance sur 5 de ne rien avoir** (le risque). XP : ~3 par ouverture — un
 > bonus, pas de quoi casser les niveaux. Tout se règle dans `config.js`
 > (`CRATE_REWARDS`, prix, `spawn`).
 
