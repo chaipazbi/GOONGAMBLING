@@ -11,12 +11,17 @@ dans un simple `data.json`.
 | `/pari creer <titre> <issue_1> <issue_2> …` | Crée un pari (jusqu'à 20 issues) |
 | `/pari liste` | Paris en cours |
 | `/solde [membre]` | Solde |
-| `/daily` | Récompense quotidienne (**+XP**) |
+| `/daily` | Récompense quotidienne (**+XP**) — une fois par jour |
 | `/daily auto:09:00` | Collecte automatique tous les jours à 9h (XP réduite) |
 | `/daily auto:off` | Désactive la collecte auto |
 | `/donner <membre> <montant>` | Transfert |
 | `/stats [membre]` | Niveau, XP, ratio V/D, pièces misées/gagnées/perdues |
 | `/classement [type]` | Top pièces (défaut) ou top niveau |
+| `/boutique` | Boutique du jour : 3 caisses à acheter |
+| `/inventaire [membre]` | Voir/ouvrir ses caisses |
+| `/caisses` | Probabilités de chaque caisse |
+| `/caisse donner\|retirer` | Donner/retirer des caisses (admin) |
+| `/refresh-boutique [membre]` | Renouveler la boutique (admin) |
 | `/eco ajouter\|retirer\|definir` | Gestion admin des soldes |
 | `/xp ajouter\|retirer\|definir` | Gestion admin de l'expérience |
 
@@ -57,7 +62,8 @@ Un admin peut ajuster l'XP d'un membre avec `/xp`.
 
 ## 📊 Statistiques (`/stats`)
 Paris joués / gagnés / perdus, **ratio V/D** et taux de victoire, total misé,
-pièces gagnées et perdues, bilan net, solde, état de la collecte auto.
+pièces gagnées et perdues, bilan net. **Caisses** : ouvertes, dépensé/gagné,
+XP gagnée, bilan. Plus l'**inventaire**, le solde et l'état de la collecte auto.
 
 ---
 
@@ -101,6 +107,8 @@ sudo systemctl restart bot-paris
 | `bets.js` | Paris, cotes, clôture, correction |
 | `ui.js` | Embeds et boutons |
 | `scheduler.js` | Collecte automatique du daily |
+| `time.js` | Date/heure locales (fuseau configuré) |
+| `shop.js` | Boutique quotidienne et ouverture des caisses |
 
 ## 🌍 Utilisation sur plusieurs serveurs
 
@@ -118,6 +126,38 @@ Pour ouvrir le bot à d'autres serveurs :
 
 > À partir de **100 serveurs**, Discord impose une vérification du bot.
 > Et si l'usage grossit beaucoup, il faudra passer de `data.json` à SQLite.
+
+## 🛒 Boutique et caisses
+
+`/boutique` propose **3 caisses par jour** (par joueur), renouvelées chaque jour
+à 00h00. Plus une caisse est rare, moins elle apparaît. Cinq raretés :
+
+| Caisse | Prix | Apparition |
+|---|---|---|
+| ⚪ Commune | 750 | 45 % |
+| 🔵 Rare | 1250 | 27 % |
+| 🟣 Épique | 2000 | 15 % |
+| 🟡 Légendaire | 2500 | 9 % |
+| 🔴 Mythique | 3000 | 4 % |
+
+Les caisses achetées vont dans l'**inventaire** (`/inventaire`), où on les ouvre
+quand on veut. **Le résultat d'une ouverture est public** dans le salon.
+`/caisses` affiche la table complète des probabilités.
+
+À l'ouverture (probabilités par caisse) : **rien** 5 %, **+10 XP** 17 %,
+**+80 XP** 7 %, pièces < prix (×0.75/×0.90) 31 %, remboursement (×1) 14 %,
+profit (+25 % / +50 %) 21 %, **caisse supérieure** 5 % (ouverte automatiquement
+en chaîne). La mythique n'a pas de rang au-dessus : ce slot devient un gain de
++75 %.
+
+> ⚖️ **Équilibrage** — pièces : on récupère en moyenne **~74 % de la mise**
+> (~554 pour une Commune à 750) : perte douce, avec de vraies chances de gagner.
+> XP : ~7 par ouverture (~22/jour sur 3 caisses, contre 50 pour le daily) — un
+> bonus, pas de quoi casser les niveaux. Tout se règle dans `config.js`
+> (`CRATE_REWARDS`, prix, `spawn`).
+
+Un admin peut distribuer des caisses (giveaways) avec
+`/caisse donner @membre <rareté> <nombre>`, et en retirer avec `/caisse retirer`.
 
 ## ⚠️ Notes
 - Sauvegarde `data.json` régulièrement.

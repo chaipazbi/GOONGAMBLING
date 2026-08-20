@@ -22,7 +22,7 @@ async function tick(client) {
 
         // Même date que le tick : le daily du jour est donné une seule fois,
         // que ce soit par l'auto ou par le /daily manuel.
-        const res = claimDaily(guildId, userId, { xp: config.xpDailyAuto, date });
+        const res = claimDaily(guildId, userId, { xp: config.xpDailyAuto, amount: config.dailyAmountAuto, date });
         if (!res.ok) continue; // déjà récupéré manuellement aujourd'hui
 
         const nomServeur = client.guilds.cache.get(guildId)?.name ?? 'ton serveur';

@@ -18,6 +18,8 @@ function defaultUser() {
     lastDaily: 0,
     lastDailyDate: null,
     xp: 0,
+    shop: null,
+    crates: {},
     autoDaily: null,
     lastAutoDate: null,
     stats: {
@@ -27,6 +29,10 @@ function defaultUser() {
       totalStaked: 0,
       totalWon: 0,
       totalLost: 0,
+      cratesOpened: 0,
+      crateSpent: 0,
+      crateWon: 0,
+      crateXp: 0,
     },
   };
 }
@@ -41,6 +47,8 @@ function migrateUser(u) {
   u.xp ??= d.xp;
   u.autoDaily ??= d.autoDaily;
   u.lastAutoDate ??= d.lastAutoDate;
+  u.shop ??= null;
+  u.crates ??= {};
   u.stats ??= {};
   for (const k of Object.keys(d.stats)) u.stats[k] ??= 0;
   return u;

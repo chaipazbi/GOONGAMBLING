@@ -109,6 +109,72 @@ export const commands = [
     ),
 
   new SlashCommandBuilder()
+    .setName('boutique')
+    .setDescription('Affiche la boutique du jour (caisses à acheter)'),
+
+  new SlashCommandBuilder()
+    .setName('inventaire')
+    .setDescription('Ouvre ton inventaire de caisses')
+    .addUserOption((o) => o.setName('membre').setDescription("Voir l'inventaire d'un membre")),
+
+  new SlashCommandBuilder()
+    .setName('caisses')
+    .setDescription('Affiche les probabilités de chaque caisse'),
+
+  new SlashCommandBuilder()
+    .setName('caisse')
+    .setDescription('Gestion des caisses (admin)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addSubcommand((s) =>
+      s
+        .setName('donner')
+        .setDescription('Donne des caisses à un membre')
+        .addUserOption((o) => o.setName('membre').setDescription('Membre').setRequired(true))
+        .addStringOption((o) =>
+          o
+            .setName('rarete')
+            .setDescription('Rareté de la caisse')
+            .setRequired(true)
+            .addChoices(
+              { name: 'Commune', value: 'commun' },
+              { name: 'Rare', value: 'rare' },
+              { name: 'Épique', value: 'epic' },
+              { name: 'Légendaire', value: 'legendaire' },
+              { name: 'Mythique', value: 'mythique' }
+            )
+        )
+        .addIntegerOption((o) => o.setName('nombre').setDescription('Combien').setMinValue(1).setMaxValue(1000))
+    )
+    .addSubcommand((s) =>
+      s
+        .setName('retirer')
+        .setDescription('Retire des caisses à un membre')
+        .addUserOption((o) => o.setName('membre').setDescription('Membre').setRequired(true))
+        .addStringOption((o) =>
+          o
+            .setName('rarete')
+            .setDescription('Rareté de la caisse')
+            .setRequired(true)
+            .addChoices(
+              { name: 'Commune', value: 'commun' },
+              { name: 'Rare', value: 'rare' },
+              { name: 'Épique', value: 'epic' },
+              { name: 'Légendaire', value: 'legendaire' },
+              { name: 'Mythique', value: 'mythique' }
+            )
+        )
+        .addIntegerOption((o) => o.setName('nombre').setDescription('Combien').setMinValue(1).setMaxValue(1000))
+    ),
+
+  new SlashCommandBuilder()
+    .setName('refresh-boutique')
+    .setDescription('Force le renouvellement de la boutique (admin)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addUserOption((o) =>
+      o.setName('membre').setDescription("Cibler un seul membre (sinon tout le serveur)")
+    ),
+
+  new SlashCommandBuilder()
     .setName('pari')
     .setDescription('Système de paris')
     .addSubcommand(buildCreer)

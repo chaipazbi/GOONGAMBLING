@@ -160,6 +160,7 @@ export function profilEmbed(user, member) {
   const s = user.stats;
   const decided = s.betsWon + s.betsLost;
   const net = s.totalWon - s.totalLost;
+  const crateNet = s.crateWon - s.crateSpent;
 
   return new EmbedBuilder()
     .setTitle(`📊 Profil de ${member.displayName ?? member.username}`)
@@ -182,6 +183,22 @@ export function profilEmbed(user, member) {
           `Misé au total : ${money(s.totalStaked)}\n` +
           `Gagné : ${money(s.totalWon)} · Perdu : ${money(s.totalLost)}\n` +
           `Bilan : **${net >= 0 ? '+' : ''}${net.toLocaleString('fr-FR')}** ${config.currencySymbol}`,
+        inline: false,
+      },
+      {
+        name: '📦 Caisses',
+        value:
+          `Ouvertes : **${s.cratesOpened}**\n` +
+          `Dépensé : ${money(s.crateSpent)} · Gagné : ${money(s.crateWon)} · XP : **${s.crateXp}**\n` +
+          `Bilan caisses : **${crateNet >= 0 ? '+' : ''}${crateNet.toLocaleString('fr-FR')}** ${config.currencySymbol}`,
+        inline: false,
+      },
+      {
+        name: '🎒 Inventaire',
+        value: SHOP.inventoryList(user).map((e) => {
+          const c = SHOP.crateById(e.id);
+          return `${c.emoji} ${c.nom} ×**${e.count}**`;
+        }).join('  ·  ') || '_vide_',
         inline: false,
       },
       { name: '👛 Solde actuel', value: money(user.balance), inline: true },
@@ -209,4 +226,143 @@ export function leaderboardEmbed(entries, kind) {
     .setTitle(kind === 'xp' ? '🏅 Classement — Niveaux' : `🏆 Classement — ${config.currencyName}`)
     .setDescription(lines.join('\n') || 'Aucun joueur pour le moment.')
     .setColor(kind === 'xp' ? 0x9b59b6 : 0xf1c40f);
+}
+
+// ===================== BOUTIQUE / CAISSES =====================
+import * as SHOP from './shop.js';
+import { CRATES, CRATE_REWARDS } from './config.js';
+
+export function shopEmbed(user) {
+  const slots = user.shop?.slots ?? [];
+  const lines = slots.map((s, i) => {
+    const c = SHOP.crateById(s.id);
+    const etat = s.bought ? '✅ achetée' : `${money(c.prix)}`;
+    return `**${i + 1}.** ${c.emoji} Caisse **${c.nom}** — ${etat}`;
+  });
+
+  return new EmbedBuilder()
+    .setTitle('🛒 Boutique du jour')
+    .setDescription(
+      (lines.join('\n') || 'Boutique vide.') +
+        `\n\n_3 caisses par jour, renouvelées à 00h00 (${config.timezone})._` +
+        `\nLes caisses achetées vont dans ton **/inventaire**.`
+    )
+    .setFooter({ text: 'Clique pour acheter. Ouvre ensuite depuis /inventaire.' })
+    .setColor(0xe67e22);
+}
+
+export function shopComponents(user) {
+  const slots = user.shop?.slots ?? [];
+  const row = new ActionRowBuilder();
+  slots.forEach((s, i) => {
+    const c = SHOP.crateById(s.id);
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`shop:buy:${i}`)
+        .setLabel(`${c.nom} · ${c.prix}`)
+        .setEmoji(c.emoji)
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(!!s.bought)
+    );
+  });
+  return slots.length ? [row] : [];
+}
+
+export function inventoryEmbed(user, member) {
+  const list = SHOP.inventoryList(user);
+  const lines = list.map((e) => {
+    const c = SHOP.crateById(e.id);
+    return `${c.emoji} Caisse **${c.nom}** ×**${e.count}**  _(valeur ${money(c.prix)})_`;
+  });
+
+  return new EmbedBuilder()
+    .setTitle(`🎒 Inventaire de ${member.displayName ?? member.username}`)
+    .setDescription(lines.join('\n') || "Aucune caisse. Achètes-en dans la `/boutique` !")
+    .setFooter(list.length ? { text: 'Clique sur une caisse pour l\'ouvrir.' } : null)
+    .setColor(0x1abc9c);
+}
+
+// Boutons d'ouverture (une par rareté possédée). own = c'est ton inventaire.
+export function inventoryComponents(user, own) {
+  if (!own) return [];
+  const list = SHOP.inventoryList(user);
+  const rows = [];
+  let row = new ActionRowBuilder();
+  list.forEach((e, i) => {
+    if (i > 0 && i % 5 === 0) {
+      rows.push(row);
+      row = new ActionRowBuilder();
+    }
+    const c = SHOP.crateById(e.id);
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`inv:open:${e.id}`)
+        .setLabel(`Ouvrir ${c.nom} (${e.count})`)
+        .setEmoji(c.emoji)
+        .setStyle(ButtonStyle.Primary)
+    );
+  });
+  if (row.components.length) rows.push(row);
+  return rows;
+}
+
+// Résultat d'ouverture (public). opener = GuildMember qui a ouvert.
+export function crateResultEmbed(openerMember, openedId, result) {
+  const opened = SHOP.crateById(openedId);
+
+  const etapes = result.chain.map((step) => {
+    const c = SHOP.crateById(step.crateId);
+    if (step.kind === 'coins') return `${c.emoji} ${c.nom} → ${money(step.coins)}`;
+    if (step.kind === 'xp') return `${c.emoji} ${c.nom} → ✨ **+${step.xp} XP**`;
+    if (step.kind === 'upgrade') {
+      const nxt = SHOP.crateById(step.nextId);
+      return `${c.emoji} ${c.nom} → 🎁 caisse **${nxt?.nom ?? '?'}** !`;
+    }
+    return `${c.emoji} ${c.nom} → 💨 rien`;
+  });
+
+  const gagnePiece = result.totalCoins > 0;
+  const gagneXp = result.totalXp > 0;
+  const titre = gagnePiece
+    ? '🎉 Gagné !'
+    : gagneXp
+    ? '✨ Gain d\'XP !'
+    : '💨 Pas de chance…';
+
+  let desc = etapes.join('\n') + '\n';
+  if (gagnePiece) desc += `\nPièces reçues : ${money(result.totalCoins)}`;
+  if (gagneXp) desc += `\nXP reçue : **+${result.totalXp}**`;
+  if (result.xpGain?.levelUp) desc += `\n🎉 Niveau **${result.xpGain.level}** atteint !`;
+
+  return new EmbedBuilder()
+    .setAuthor({
+      name: `${openerMember.displayName ?? openerMember.username} a ouvert une caisse ${opened.nom}`,
+      iconURL: openerMember.displayAvatarURL?.() ?? undefined,
+    })
+    .setTitle(`${opened.emoji} ${titre}`)
+    .setDescription(desc)
+    .setColor(opened.couleur);
+}
+
+// Tableau des probabilités de toutes les caisses.
+export function cratesInfoEmbed() {
+  const embed = new EmbedBuilder()
+    .setTitle('🎲 Probabilités des caisses')
+    .setDescription('Le montant est ce que tu **reçois** (ton gain net = montant − prix payé).')
+    .setColor(0xe67e22);
+
+  for (const c of CRATES) {
+    const lignes = CRATE_REWARDS.map((o) => {
+      const pc = `${(o.p * 100).toFixed(0)}%`.padStart(3);
+      if (o.kind === 'coins') return `\`${pc}\` ${Math.floor(c.prix * o.mult)} 🪙`;
+      if (o.kind === 'xp') return `\`${pc}\` +${o.xp} XP`;
+      if (o.kind === 'nothing') return `\`${pc}\` rien`;
+      // upgrade
+      if (c.id === 'mythique') return `\` 5%\` ${Math.floor(c.prix * 1.75)} 🪙 (+75%)`;
+      const nxt = SHOP.nextCrate(c.id);
+      return `\`${pc}\` caisse ${nxt?.nom ?? '?'} 🎁`;
+    });
+    embed.addFields({ name: `${c.emoji} ${c.nom} — ${c.prix} 🪙`, value: lignes.join('\n'), inline: true });
+  }
+  return embed;
 }

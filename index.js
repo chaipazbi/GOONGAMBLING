@@ -9,12 +9,14 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import { config, money } from './config.js';
-import { ensureUser } from './store.js';
+import { ensureUser, save, getData } from './store.js';
 import * as eco from './economy.js';
 import * as L from './levels.js';
 import * as B from './bets.js';
 import * as ui from './ui.js';
 import { startScheduler } from './scheduler.js';
+import { today } from './time.js';
+import { rollShop, crateById, crateCount, giveCrates, takeCrates, openFromInventory } from './shop.js';
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
@@ -61,7 +63,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    if (interaction.isButton()) return await onButton(interaction);
+    if (interaction.isButton()) {
+      if (interaction.customId.startsWith('shop:')) return await onShopButton(interaction);
+      if (interaction.customId.startsWith('inv:')) return await onInventoryButton(interaction);
+      return await onButton(interaction);
+    }
     if (interaction.isStringSelectMenu()) return await onSelect(interaction);
     if (interaction.isModalSubmit()) return await onModal(interaction);
     if (!interaction.isChatInputCommand()) return;
@@ -74,6 +80,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       case 'stats':      return await cmdStats(interaction);
       case 'eco':        return await cmdEco(interaction);
       case 'xp':         return await cmdXp(interaction);
+      case 'boutique':   return await cmdBoutique(interaction);
+      case 'inventaire': return await cmdInventaire(interaction);
+      case 'caisses':    return await cmdCaisses(interaction);
+      case 'caisse':     return await cmdCaisseAdmin(interaction);
+      case 'refresh-boutique': return await cmdRefreshBoutique(interaction);
       case 'pari':       return await cmdPari(interaction);
     }
   } catch (err) {
@@ -359,6 +370,144 @@ async function cmdXp(interaction) {
   else if (apres < avant) msg += `\n📉 Redescendu du niveau ${avant} au niveau ${apres}.`;
   return interaction.reply(msg);
 }
+
+// ============ BOUTIQUE ============
+
+function ensureShop(guildId, userId) {
+  const u = ensureUser(guildId, userId);
+  const t = today();
+  if (!u.shop || u.shop.date !== t) {
+    u.shop = { date: t, slots: rollShop().map((id) => ({ id, bought: false })) };
+    save();
+  }
+  return u;
+}
+
+async function cmdBoutique(interaction) {
+  const u = ensureShop(interaction.guildId, interaction.user.id);
+  return interaction.reply({
+    embeds: [ui.shopEmbed(u)],
+    components: ui.shopComponents(u),
+    ephemeral: true,
+  });
+}
+
+async function onShopButton(interaction) {
+  const [, action, idxStr] = interaction.customId.split(':');
+  if (action !== 'buy') return;
+
+  const g = interaction.guildId;
+  const userId = interaction.user.id;
+  const u = ensureUser(g, userId);
+  const t = today();
+
+  if (!u.shop || u.shop.date !== t) {
+    return priv(interaction, 'La boutique a été renouvelée. Relance `/boutique`.');
+  }
+
+  const slot = u.shop.slots[parseInt(idxStr, 10)];
+  if (!slot) return priv(interaction, 'Caisse introuvable.');
+  if (slot.bought) return priv(interaction, 'Tu as déjà ouvert cette caisse aujourd\'hui.');
+
+  const crate = crateById(slot.id);
+  if (eco.getBalance(g, userId) < crate.prix) {
+    return priv(interaction, `Solde insuffisant. Il te faut ${money(crate.prix)}.`);
+  }
+
+  // Achat : la caisse part dans l'inventaire (elle s'ouvre via /inventaire)
+  eco.addBalance(g, userId, -crate.prix);
+  giveCrates(g, userId, slot.id, 1, { spent: crate.prix });
+  slot.bought = true;
+  save();
+
+  await interaction.update({ embeds: [ui.shopEmbed(u)], components: ui.shopComponents(u) });
+  await interaction.followUp({
+    content: `${crate.emoji} Caisse **${crate.nom}** ajoutée à ton inventaire ! Ouvre-la avec \`/inventaire\`.`,
+    ephemeral: true,
+  });
+}
+
+// ============ INVENTAIRE ============
+
+async function cmdInventaire(interaction) {
+  const cible = interaction.options.getUser('membre') || interaction.user;
+  const own = cible.id === interaction.user.id;
+  const membre = (await interaction.guild.members.fetch(cible.id).catch(() => null)) || cible;
+  const u = ensureUser(interaction.guildId, cible.id);
+  return interaction.reply({
+    embeds: [ui.inventoryEmbed(u, membre)],
+    components: ui.inventoryComponents(u, own),
+    ephemeral: true,
+  });
+}
+
+async function onInventoryButton(interaction) {
+  const [, action, id] = interaction.customId.split(':');
+  if (action !== 'open') return;
+
+  const g = interaction.guildId;
+  const userId = interaction.user.id;
+  const u = ensureUser(g, userId);
+
+  if (crateCount(u, id) < 1) return priv(interaction, "Tu n'as plus cette caisse.");
+
+  const result = openFromInventory(g, userId, id);
+  if (!result) return priv(interaction, "Tu n'as plus cette caisse.");
+
+  // Rafraîchit l'inventaire (privé) puis publie le résultat dans le salon
+  await interaction.update({
+    embeds: [ui.inventoryEmbed(u, interaction.member)],
+    components: ui.inventoryComponents(u, true),
+  });
+  if (interaction.channel) {
+    await interaction.channel.send({ embeds: [ui.crateResultEmbed(interaction.member, id, result)] });
+  }
+}
+
+// ============ CAISSES (infos + admin) ============
+
+async function cmdCaisses(interaction) {
+  return interaction.reply({ embeds: [ui.cratesInfoEmbed()] });
+}
+
+async function cmdCaisseAdmin(interaction) {
+  const sub = interaction.options.getSubcommand();
+  const cible = interaction.options.getUser('membre');
+  const rarete = interaction.options.getString('rarete');
+  const n = interaction.options.getInteger('nombre') || 1;
+  const crate = crateById(rarete);
+
+  if (sub === 'donner') {
+    giveCrates(interaction.guildId, cible.id, rarete, n);
+    return interaction.reply(`${crate.emoji} **${n}** caisse(s) **${crate.nom}** donnée(s) à ${cible}.`);
+  }
+  if (sub === 'retirer') {
+    const retire = takeCrates(interaction.guildId, cible.id, rarete, n);
+    return interaction.reply(`${crate.emoji} **${retire}** caisse(s) **${crate.nom}** retirée(s) à ${cible}.`);
+  }
+}
+
+async function cmdRefreshBoutique(interaction) {
+  const g = interaction.guildId;
+  const cible = interaction.options.getUser('membre');
+  const fresh = () => ({ date: today(), slots: rollShop().map((id) => ({ id, bought: false })) });
+
+  if (cible) {
+    ensureUser(g, cible.id).shop = fresh();
+    save();
+    return interaction.reply(`🔄 Boutique de ${cible} renouvelée — elle/il peut refaire \`/boutique\`.`);
+  }
+
+  const guild = getData().guilds[g];
+  const users = guild ? Object.values(guild.users) : [];
+  for (const u of users) u.shop = fresh();
+  save();
+  return interaction.reply(
+    `🔄 Boutique renouvelée pour **${users.length}** joueur(s) du serveur. Nouvelle sélection dispo via \`/boutique\`.`
+  );
+}
+
+// ============ COMMANDES : PARIS ============
 
 // ============ COMMANDES : PARIS ============
 

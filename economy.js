@@ -35,7 +35,7 @@ export function transfer(guildId, fromId, toId, amount) {
 // la collecte auto. xp : montant d'XP accordé (le manuel en donne plus).
 // date : jour de référence (par défaut aujourd'hui) — permet à l'auto de passer
 // le jour exact du tick.
-export function claimDaily(guildId, userId, { xp = config.xpDaily, date = today() } = {}) {
+export function claimDaily(guildId, userId, { xp = config.xpDaily, amount = config.dailyAmount, date = today() } = {}) {
   const u = ensureUser(guildId, userId);
 
   if (u.lastDailyDate === date) {
@@ -44,11 +44,11 @@ export function claimDaily(guildId, userId, { xp = config.xpDaily, date = today(
 
   u.lastDailyDate = date;
   u.lastDaily = Date.now();
-  u.balance += config.dailyAmount;
+  u.balance += amount;
   save();
 
   const gain = xp > 0 ? addXp(guildId, userId, xp) : null;
-  return { ok: true, amount: config.dailyAmount, balance: u.balance, xp: gain };
+  return { ok: true, amount, balance: u.balance, xp: gain };
 }
 
 // Programme (ou annule) la collecte auto. heure = "HH:MM" ou null.
