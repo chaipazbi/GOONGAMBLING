@@ -559,6 +559,7 @@ async function onBlackjackButton(interaction) {
   if (action === 'menu') {
     const sub = interaction.customId.split(':')[2];
     if (sub === 'odds') return interaction.reply({ embeds: [cui.blackjackOddsEmbed()], ephemeral: true });
+    if (sub === 'rules') return interaction.reply({ embeds: [cui.blackjackRulesEmbed()], ephemeral: true });
     // play -> modale de mise
     return interaction.showModal(miseModal('bj:betmodal', 'Blackjack — ta mise'));
   }
@@ -620,6 +621,7 @@ async function onRouletteButton(interaction) {
 
   if (action === 'menu') {
     if (parts[2] === 'odds') return interaction.reply({ embeds: [cui.rouletteOddsEmbed()], ephemeral: true });
+    if (parts[2] === 'rules') return interaction.reply({ embeds: [cui.rouletteRulesEmbed()], ephemeral: true });
     // new -> lobby public
     const lobby = { guildId: interaction.guildId, channelId: interaction.channelId, ownerId: interaction.user.id, bets: [], open: true };
     await interaction.reply({ embeds: [cui.rouletteLobbyEmbed(lobby)], components: cui.rouletteComponents(true) });
@@ -706,6 +708,7 @@ async function onHorseButton(interaction) {
 
   if (action === 'menu') {
     if (parts[2] === 'odds') return interaction.reply({ embeds: [cui.horseOddsEmbed()], ephemeral: true });
+    if (parts[2] === 'rules') return interaction.reply({ embeds: [cui.horseRulesEmbed()], ephemeral: true });
     const lobby = { guildId: interaction.guildId, channelId: interaction.channelId, ownerId: interaction.user.id, race: H.makeRace(), bets: [], open: true };
     await interaction.reply({ embeds: [cui.horseLobbyEmbed(lobby)], components: cui.horseComponents(true) });
     const msg = await interaction.fetchReply();

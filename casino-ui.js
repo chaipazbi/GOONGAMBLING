@@ -28,6 +28,7 @@ export function blackjackMenu() {
     components: [
       new ActionRowBuilder().addComponents(
         btn('bj:menu:play', 'Jouer', ButtonStyle.Success, '🎮'),
+        btn('bj:menu:rules', 'Règles', ButtonStyle.Secondary, '📖'),
         btn('bj:menu:odds', 'Probabilités', ButtonStyle.Secondary, '📊')
       ),
     ],
@@ -112,6 +113,7 @@ export function rouletteMenu() {
     components: [
       new ActionRowBuilder().addComponents(
         btn('roul:menu:new', 'Nouvelle table', ButtonStyle.Success, '🎡'),
+        btn('roul:menu:rules', 'Règles', ButtonStyle.Secondary, '📖'),
         btn('roul:menu:odds', 'Cotes', ButtonStyle.Secondary, '📊')
       ),
     ],
@@ -182,7 +184,8 @@ export function horseMenu() {
     components: [
       new ActionRowBuilder().addComponents(
         btn('horse:menu:new', 'Nouvelle course', ButtonStyle.Success, '🐎'),
-        btn('horse:menu:odds', 'Comment ça marche', ButtonStyle.Secondary, '📊')
+        btn('horse:menu:rules', 'Règles', ButtonStyle.Secondary, '📖'),
+        btn('horse:menu:odds', 'Cotes', ButtonStyle.Secondary, '📊')
       ),
     ],
   };
@@ -241,5 +244,71 @@ export function horseResultEmbed(lobby, winnerIndex, payouts) {
   return new EmbedBuilder()
     .setTitle(`🐎 ${w.nom} remporte la course !`)
     .setDescription(classement + '\n\n' + (lignes.join('\n') || '_Aucun pari._'))
+    .setColor(0xf39c12);
+}
+
+// ---------------- RÈGLES ----------------
+
+export function blackjackRulesEmbed() {
+  return new EmbedBuilder()
+    .setTitle('🃏 Blackjack — règles')
+    .setDescription(
+      [
+        '**But :** avoir une main plus proche de 21 que le croupier, sans dépasser.',
+        '',
+        '**Valeur des cartes :** 2 à 10 = leur chiffre · Valet/Dame/Roi = 10 · As = 1 ou 11 (au mieux).',
+        '',
+        '**Déroulé :**',
+        '1. Tu mises, puis tu reçois 2 cartes. Le croupier en montre une seule.',
+        '2. **Tirer** : une carte de plus · **Rester** : garder ta main · **Doubler** : doubler la mise, une seule carte, puis stop.',
+        '3. Si tu dépasses 21, tu sautes (perdu direct).',
+        '4. Quand tu restes, le croupier tire jusqu\'à atteindre 17.',
+        '',
+        `**Issues :** tu gagnes si ta main bat celle du croupier (ou s\'il saute). Victoire = mise × un multiplicateur aléatoire **${BJ_MIN_MULT.toFixed(2)}–${BJ_MAX_MULT.toFixed(2)}**. Égalité = mise rendue. Défaite = mise perdue.`,
+      ].join('\n')
+    )
+    .setColor(0x2ecc71);
+}
+
+export function rouletteRulesEmbed() {
+  return new EmbedBuilder()
+    .setTitle('🎡 Roulette — règles')
+    .setDescription(
+      [
+        '**But :** deviner où la bille va s\'arrêter sur une roue de 0 à 36.',
+        '',
+        '**Comment jouer :**',
+        '1. Quelqu\'un lance une table, tout le monde peut venir miser.',
+        '2. Clique **Miser**, choisis un type de pari et un montant.',
+        '3. Le créateur lance la roue : la bille tombe sur un numéro, les gagnants sont payés.',
+        '',
+        '**Types de paris et gains :**',
+        '▫️ **Rouge / Noir / Pair / Impair / Manque (1-18) / Passe (19-36)** → gain ×2',
+        '▫️ **Douzaine (1-12, 13-24, 25-36) / Colonne** → gain ×3',
+        '▫️ **Numéro plein** (un numéro exact, ex. `plein 17`) → gain ×36',
+        '',
+        '_Le 0 est vert : sur rouge/noir/pair/impair, le 0 fait perdre — c\'est l\'avantage maison._',
+      ].join('\n')
+    )
+    .setColor(0xe74c3c);
+}
+
+export function horseRulesEmbed() {
+  return new EmbedBuilder()
+    .setTitle('🐎 Course de chevaux — règles')
+    .setDescription(
+      [
+        '**But :** parier sur le cheval qui va gagner la course.',
+        '',
+        '**Comment jouer :**',
+        '1. Quelqu\'un lance une course : 4 chevaux apparaissent, chacun avec sa **cote**.',
+        '2. Clique **Parier**, choisis le numéro du cheval (1 à 4) et ta mise.',
+        '3. Le créateur lance la course, un cheval gagne.',
+        '',
+        '**La cote = ton gain.** Gain = mise × cote. Ex. : 100 misés sur une cote 3.0 → 300 si tu gagnes (sinon mise perdue).',
+        '',
+        '**Cote haute** = gros gain mais moins de chances · **cote basse** = petit gain plus sûr. À toi de doser le risque !',
+      ].join('\n')
+    )
     .setColor(0xf39c12);
 }
