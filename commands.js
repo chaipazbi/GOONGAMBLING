@@ -187,6 +187,10 @@ export const commands = [
     .setDescription('Lance une course de chevaux'),
 
   new SlashCommandBuilder()
+    .setName('serveurs')
+    .setDescription('Liste les serveurs où le bot est présent (propriétaire uniquement)'),
+
+  new SlashCommandBuilder()
     .setName('pari')
     .setDescription('Système de paris')
     .addSubcommand(buildCreer)

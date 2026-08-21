@@ -103,6 +103,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       case 'blackjack':  return await interaction.reply({ ...cui.blackjackMenu(), ephemeral: true });
       case 'roulette':   return await interaction.reply({ ...cui.rouletteMenu(), ephemeral: true });
       case 'course-de-cheval': return await interaction.reply({ ...cui.horseMenu(), ephemeral: true });
+      case 'serveurs':   return await cmdServeurs(interaction);
       case 'pari':       return await cmdPari(interaction);
     }
   } catch (err) {
@@ -528,6 +529,34 @@ async function cmdRefreshBoutique(interaction) {
   return interaction.reply(
     `🔄 Boutique renouvelée pour **${users.length}** joueur(s) du serveur. Nouvelle sélection dispo via \`/boutique\`.`
   );
+}
+
+// ============ PROPRIÉTAIRE ============
+
+async function cmdServeurs(interaction) {
+  if (!config.ownerId || interaction.user.id !== config.ownerId) {
+    return priv(interaction, "Cette commande est réservée au propriétaire du bot.");
+  }
+
+  const guilds = [...client.guilds.cache.values()].sort((a, b) => b.memberCount - a.memberCount);
+  const lignes = guilds.map(
+    (g, i) => `**${i + 1}.** ${g.name} — \`${g.id}\` (${g.memberCount} membres)`
+  );
+
+  const total = guilds.length;
+  const chunks = [];
+  let buf = `Le bot est présent sur **${total}** serveur(s) :\n\n`;
+  for (const l of lignes) {
+    if ((buf + l).length > 1900) {
+      chunks.push(buf);
+      buf = '';
+    }
+    buf += l + '\n';
+  }
+  if (buf) chunks.push(buf);
+
+  await interaction.reply({ content: chunks[0], ephemeral: true });
+  for (const c of chunks.slice(1)) await interaction.followUp({ content: c, ephemeral: true });
 }
 
 // ============ JEUX : helpers ============
