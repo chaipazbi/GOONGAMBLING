@@ -108,3 +108,24 @@ export const BJ_INFO = {
   loseRate: 49.1,
   note: 'Croupier tire jusqu\'à 17. Victoire payée × un multiplicateur aléatoire 2.00–2.80.',
 };
+
+// ---------------- MODE JOUEUR CONTRE JOUEUR (table publique) ----------------
+// Chaque joueur a une main ; le plus proche de 21 sans dépasser gagne la
+// cagnotte. Égalité = partage. Tout le monde saute = personne ne gagne.
+export function dealPvpHand() {
+  return [drawCard(), drawCard()];
+}
+
+export function hitPvp(player) {
+  player.hand.push(drawCard());
+  if (handValue(player.hand) > 21) player.status = 'done';
+  return player;
+}
+
+export function resolvePvp(players) {
+  const vivants = players.filter((p) => handValue(p.hand) <= 21);
+  if (vivants.length === 0) return { allBust: true, winners: [], best: 0 };
+  const best = Math.max(...vivants.map((p) => handValue(p.hand)));
+  const winners = vivants.filter((p) => handValue(p.hand) === best).map((p) => p.userId);
+  return { allBust: false, winners, best };
+}

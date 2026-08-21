@@ -25,22 +25,39 @@ function shuffle(a) {
   return arr;
 }
 
-// Crée 4 chevaux avec des forces aléatoires -> probabilités -> cotes affichées.
+// Plancher de probabilité : borne les cotes les plus hautes (~15 max).
+const PROB_MIN = 0.08;
+
+// Crée 4 chevaux avec un écart marqué -> vrais favoris (cote basse, ils gagnent
+// souvent mais paient peu) et vrais outsiders (cote haute, gros gain mais rares).
+function genererChevaux(noms) {
+  // Écart accentué (puissance) pour bien différencier les chevaux.
+  const forces = noms.map(() => Math.pow(0.1 + Math.random(), 1.6));
+  let somme = forces.reduce((a, b) => a + b, 0);
+  let probs = forces.map((f) => f / somme);
+
+  // Plancher puis renormalisation : aucun cheval n'est totalement sans chance.
+  probs = probs.map((p) => Math.max(PROB_MIN, p));
+  somme = probs.reduce((a, b) => a + b, 0);
+  probs = probs.map((p) => p / somme);
+
+  // Cote = (1/prob) ajustée par l'avantage (négatif = avantage joueur), arrondie.
+  return noms.map((nom, i) => {
+    let cote = (1 / probs[i]) * (1 - HOUSE_EDGE);
+    cote = Math.max(1.3, Math.round(cote * 10) / 10);
+    return { nom, prob: probs[i], cote };
+  });
+}
+
 export function makeRace() {
   const noms = shuffle(UMA_NAMES).slice(0, 4);
 
-  // Forces aléatoires, converties en probabilités réelles de victoire.
-  const forces = noms.map(() => 0.5 + Math.random() * 1.5);
-  const somme = forces.reduce((a, b) => a + b, 0);
-  const probs = forces.map((f) => f / somme);
-
-  // Cote affichée = (1/prob) réduite par l'avantage maison, bornée et arrondie.
-  const horses = noms.map((nom, i) => {
-    const fair = 1 / probs[i];
-    let cote = fair * (1 - HOUSE_EDGE);
-    cote = Math.max(1.2, Math.round(cote * 10) / 10);
-    return { nom, prob: probs[i], cote };
-  });
+  // On régénère si deux chevaux tombent sur la même cote (plus lisible).
+  let horses;
+  for (let essai = 0; essai < 20; essai++) {
+    horses = genererChevaux(noms);
+    if (new Set(horses.map((h) => h.cote)).size === horses.length) break;
+  }
 
   return { horses, createdAt: Date.now() };
 }

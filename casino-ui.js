@@ -19,15 +19,17 @@ export function blackjackMenu() {
       new EmbedBuilder()
         .setTitle('🃏 Blackjack')
         .setDescription(
-          'Affronte le croupier. Approche-toi de 21 sans dépasser.\n' +
-            `Victoire payée **× un multiplicateur aléatoire ${BJ_MIN_MULT.toFixed(2)}–${BJ_MAX_MULT.toFixed(2)}**, ` +
-            'égalité = mise rendue, défaite = mise perdue.'
+          '**Table privée** : joue contre le croupier (le bot). Victoire payée ' +
+            `**× ${BJ_MIN_MULT.toFixed(2)}–${BJ_MAX_MULT.toFixed(2)}** au hasard, égalité = mise rendue.\n` +
+            '**Table publique (JcJ)** : plusieurs joueurs, même mise, le plus proche ' +
+            'de 21 rafle la cagnotte.'
         )
         .setColor(0x2ecc71),
     ],
     components: [
       new ActionRowBuilder().addComponents(
-        btn('bj:menu:play', 'Jouer', ButtonStyle.Success, '🎮'),
+        btn('bj:menu:private', 'Table privée', ButtonStyle.Success, '🃏'),
+        btn('bj:menu:public', 'Table publique (JcJ)', ButtonStyle.Primary, '👥'),
         btn('bj:menu:rules', 'Règles', ButtonStyle.Secondary, '📖'),
         btn('bj:menu:odds', 'Probabilités', ButtonStyle.Secondary, '📊')
       ),
@@ -197,7 +199,7 @@ export function horseOddsEmbed() {
     .setDescription(
       '4 chevaux, chacun avec une **cote** affichée au départ. Plus la cote est haute, ' +
         'moins le cheval a de chances de gagner (mais ça arrive !).\n\n' +
-        'Gain = mise × cote. Léger avantage maison intégré aux cotes.\n' +
+        'Gain = mise × cote. Cotes légèrement favorables aux joueurs.\n' +
         'Pour parier : numéro du cheval (1-4) + montant (ex. `2 100`).'
     )
     .setColor(0xf39c12);
@@ -311,4 +313,94 @@ export function horseRulesEmbed() {
       ].join('\n')
     )
     .setColor(0xf39c12);
+}
+
+// ---------------- BLACKJACK : TABLE PUBLIQUE (JcJ) ----------------
+
+export function bjTableLobbyEmbed(table) {
+  const joueurs = table.players.map((p) => {
+    if (table.phase === 'lobby') return `• <@${p.userId}>`;
+    if (table.phase === 'playing') {
+      if (p.status === 'done') return handValue(p.hand) > 21 ? `💥 <@${p.userId}> (a joué)` : `✅ <@${p.userId}> (a joué)`;
+      return `🎴 <@${p.userId}> — doit jouer`;
+    }
+    return `<@${p.userId}>`;
+  });
+
+  const e = new EmbedBuilder().setColor(0x2ecc71);
+  if (table.phase === 'lobby') {
+    e.setTitle('👥 Table de blackjack (Joueur contre Joueur)')
+      .setDescription(
+        `Mise d'entrée : ${money(table.ante)} · Cagnotte : ${money(table.ante * table.players.length)}\n\n` +
+          `**Joueurs (${table.players.length}) :**\n${joueurs.join('\n')}\n\n` +
+          'Cliquez **Rejoindre** pour entrer. Le créateur distribue quand tout le monde est prêt (2 joueurs min).'
+      );
+  } else {
+    e.setTitle('👥 Blackjack JcJ — partie en cours')
+      .setDescription(
+        `Cagnotte : ${money(table.ante * table.players.length)}\n\n` +
+          `${joueurs.join('\n')}\n\n` +
+          'Chaque joueur clique **Jouer ma main**. Le plus proche de 21 sans dépasser gagne.'
+      );
+  }
+  return e;
+}
+
+export function bjTableComponents(table) {
+  if (table.phase === 'lobby') {
+    return [
+      new ActionRowBuilder().addComponents(
+        btn('bjtable:join', 'Rejoindre', ButtonStyle.Success, '➕'),
+        btn('bjtable:deal', 'Distribuer', ButtonStyle.Primary, '🃏')
+      ),
+    ];
+  }
+  if (table.phase === 'playing') {
+    return [
+      new ActionRowBuilder().addComponents(
+        btn('bjtable:play', 'Jouer ma main', ButtonStyle.Primary, '🎴'),
+        btn('bjtable:resolve', 'Terminer la partie', ButtonStyle.Danger, '🏁')
+      ),
+    ];
+  }
+  return [];
+}
+
+export function bjHandEmbed(hand) {
+  const v = handValue(hand);
+  return new EmbedBuilder()
+    .setTitle('🎴 Ta main')
+    .setDescription(`${handLabel(hand)}  (**${v}**)` + (v > 21 ? '\n💥 Tu as dépassé 21 !' : ''))
+    .setColor(v > 21 ? 0xe74c3c : 0x3498db);
+}
+
+export function bjHandComponents(tableId, done) {
+  if (done) return [];
+  return [
+    new ActionRowBuilder().addComponents(
+      btn(`bjhand:hit:${tableId}`, 'Tirer', ButtonStyle.Primary, '🃏'),
+      btn(`bjhand:stand:${tableId}`, 'Rester', ButtonStyle.Secondary, '✋')
+    ),
+  ];
+}
+
+export function bjTableResultEmbed(table, result) {
+  const pot = table.ante * table.players.length;
+  const lignes = table.players.map((p) => {
+    const v = handValue(p.hand);
+    const bust = v > 21;
+    const gagnant = result.winners.includes(p.userId);
+    const marque = gagnant ? '🏆' : bust ? '💥' : '▫️';
+    return `${marque} <@${p.userId}> — ${handLabel(p.hand)} (**${bust ? 'sauté' : v}**)`;
+  });
+
+  let concl;
+  if (result.allBust) concl = 'Tout le monde a sauté — cagnotte remboursée à chacun.';
+  else if (result.winners.length === 1) concl = `<@${result.winners[0]}> remporte la cagnotte de ${money(pot)} !`;
+  else concl = `Égalité à ${result.best} — cagnotte de ${money(pot)} partagée entre ` + result.winners.map((w) => `<@${w}>`).join(', ') + '.';
+
+  return new EmbedBuilder()
+    .setTitle('👥 Blackjack JcJ — résultat')
+    .setDescription(lignes.join('\n') + '\n\n' + concl)
+    .setColor(0xf1c40f);
 }

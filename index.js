@@ -26,6 +26,7 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 // Parties/lobbies en mémoire (clé = id du message du jeu).
 const bjGames = new Map();
+const bjTables = new Map();
 const roulLobbies = new Map();
 const horseLobbies = new Map();
 
@@ -75,6 +76,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isButton()) {
       if (interaction.customId.startsWith('shop:')) return await onShopButton(interaction);
       if (interaction.customId.startsWith('inv:')) return await onInventoryButton(interaction);
+      if (interaction.customId.startsWith('bjtable:')) return await onBjTableButton(interaction);
+      if (interaction.customId.startsWith('bjhand:')) return await onBjHandButton(interaction);
       if (interaction.customId.startsWith('bj:')) return await onBlackjackButton(interaction);
       if (interaction.customId.startsWith('roul:')) return await onRouletteButton(interaction);
       if (interaction.customId.startsWith('horse:')) return await onHorseButton(interaction);
@@ -239,6 +242,7 @@ async function onSelect(interaction) {
 // ============ SAISIE DU MONTANT ============
 
 async function onModal(interaction) {
+  if (interaction.customId.startsWith('bj:tablemodal')) return await onBjTableModal(interaction);
   if (interaction.customId.startsWith('bj:betmodal')) return await onBlackjackBetModal(interaction);
   if (interaction.customId.startsWith('roul:betmodal')) return await onRouletteBetModal(interaction);
   if (interaction.customId.startsWith('horse:betmodal')) return await onHorseBetModal(interaction);
@@ -560,7 +564,8 @@ async function onBlackjackButton(interaction) {
     const sub = interaction.customId.split(':')[2];
     if (sub === 'odds') return interaction.reply({ embeds: [cui.blackjackOddsEmbed()], ephemeral: true });
     if (sub === 'rules') return interaction.reply({ embeds: [cui.blackjackRulesEmbed()], ephemeral: true });
-    // play -> modale de mise
+    if (sub === 'public') return interaction.showModal(miseModal('bj:tablemodal', "Table publique — mise d'entrée"));
+    // private -> table solo contre le croupier
     return interaction.showModal(miseModal('bj:betmodal', 'Blackjack — ta mise'));
   }
 
@@ -610,6 +615,123 @@ async function onBlackjackBetModal(interaction) {
     if (game.payout) eco.addBalance(g, userId, game.payout);
   } else {
     bjGames.set(msg.id, game);
+  }
+}
+
+// ============ BLACKJACK — TABLE PUBLIQUE (JcJ) ============
+
+async function onBjTableModal(interaction) {
+  const g = interaction.guildId;
+  const userId = interaction.user.id;
+  const { montant: ante, err } = parseMise(interaction.fields.getTextInputValue('mise'), eco.getBalance(g, userId));
+  if (err) return priv(interaction, err);
+
+  eco.addBalance(g, userId, -ante);
+  const table = {
+    guildId: g,
+    channelId: interaction.channelId,
+    ownerId: userId,
+    ante,
+    phase: 'lobby',
+    players: [{ userId, hand: [], status: 'waiting' }],
+    messageId: null,
+  };
+  await interaction.reply({ embeds: [cui.bjTableLobbyEmbed(table)], components: cui.bjTableComponents(table) });
+  const msg = await interaction.fetchReply();
+  table.messageId = msg.id;
+  bjTables.set(msg.id, table);
+}
+
+async function resolveBjTable(table) {
+  const result = BJ.resolvePvp(table.players);
+  const pot = table.ante * table.players.length;
+  if (result.allBust) {
+    for (const p of table.players) eco.addBalance(table.guildId, p.userId, table.ante);
+  } else {
+    const part = Math.floor(pot / result.winners.length);
+    for (const uid of result.winners) eco.addBalance(table.guildId, uid, part);
+  }
+  table.phase = 'done';
+  table._result = result;
+  bjTables.delete(table.messageId);
+  return result;
+}
+
+async function onBjTableButton(interaction) {
+  const action = interaction.customId.split(':')[1];
+  const table = bjTables.get(interaction.message.id);
+  if (!table) return priv(interaction, 'Cette table est terminée ou introuvable.');
+  const g = table.guildId;
+  const userId = interaction.user.id;
+  const estAdmin = interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild);
+
+  if (action === 'join') {
+    if (table.phase !== 'lobby') return priv(interaction, 'Les inscriptions sont closes.');
+    if (table.players.some((p) => p.userId === userId)) return priv(interaction, 'Tu es déjà dans la partie.');
+    if (eco.getBalance(g, userId) < table.ante) return priv(interaction, `Solde insuffisant (mise ${money(table.ante)}).`);
+    eco.addBalance(g, userId, -table.ante);
+    table.players.push({ userId, hand: [], status: 'waiting' });
+    return interaction.update({ embeds: [cui.bjTableLobbyEmbed(table)], components: cui.bjTableComponents(table) });
+  }
+
+  if (action === 'deal') {
+    if (table.ownerId !== userId && !estAdmin) return priv(interaction, 'Seul le créateur peut distribuer.');
+    if (table.phase !== 'lobby') return priv(interaction, 'La partie a déjà commencé.');
+    if (table.players.length < 2) return priv(interaction, 'Il faut au moins 2 joueurs.');
+    table.phase = 'playing';
+    for (const p of table.players) {
+      p.hand = BJ.dealPvpHand();
+      p.status = 'playing';
+    }
+    return interaction.update({ embeds: [cui.bjTableLobbyEmbed(table)], components: cui.bjTableComponents(table) });
+  }
+
+  if (action === 'play') {
+    if (table.phase !== 'playing') return priv(interaction, "La partie n'est pas en cours.");
+    const p = table.players.find((pp) => pp.userId === userId);
+    if (!p) return priv(interaction, "Tu n'es pas dans cette partie.");
+    const done = p.status === 'done';
+    return interaction.reply({
+      embeds: [cui.bjHandEmbed(p.hand)],
+      components: cui.bjHandComponents(table.messageId, done),
+      ephemeral: true,
+    });
+  }
+
+  if (action === 'resolve') {
+    if (table.ownerId !== userId && !estAdmin) return priv(interaction, 'Seul le créateur peut terminer la partie.');
+    if (table.phase !== 'playing') return priv(interaction, "La partie n'est pas en cours.");
+    await resolveBjTable(table);
+    return interaction.update({ embeds: [cui.bjTableResultEmbed(table, table._result)], components: [] });
+  }
+}
+
+async function onBjHandButton(interaction) {
+  const [, action, tableId] = interaction.customId.split(':');
+  const table = bjTables.get(tableId);
+  if (!table || table.phase !== 'playing') return priv(interaction, 'Cette partie est terminée.');
+  const p = table.players.find((pp) => pp.userId === interaction.user.id);
+  if (!p) return priv(interaction, "Tu n'es pas dans cette partie.");
+  if (p.status === 'done') return priv(interaction, 'Tu as déjà terminé ta main.');
+
+  if (action === 'hit') BJ.hitPvp(p);
+  else if (action === 'stand') p.status = 'done';
+
+  const done = p.status === 'done';
+  await interaction.update({ embeds: [cui.bjHandEmbed(p.hand)], components: cui.bjHandComponents(table.messageId, done) });
+
+  const tousFinis = table.players.every((pp) => pp.status === 'done');
+  try {
+    const channel = await client.channels.fetch(table.channelId);
+    const msg = await channel.messages.fetch(table.messageId);
+    if (tousFinis) {
+      await resolveBjTable(table);
+      await msg.edit({ embeds: [cui.bjTableResultEmbed(table, table._result)], components: [] });
+    } else {
+      await msg.edit({ embeds: [cui.bjTableLobbyEmbed(table)], components: cui.bjTableComponents(table) });
+    }
+  } catch (e) {
+    console.error('MAJ table BJ :', e.message);
   }
 }
 
