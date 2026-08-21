@@ -22,6 +22,9 @@ dans un simple `data.json`.
 | `/caisses` | Probabilités de chaque caisse |
 | `/caisse donner\|retirer` | Donner/retirer des caisses (admin) |
 | `/refresh-boutique [membre]` | Renouveler la boutique (admin) |
+| `/blackjack` | Blackjack contre le croupier |
+| `/roulette` | Table de roulette (multijoueur) |
+| `/course-de-cheval` | Course de 4 chevaux (multijoueur) |
 | `/eco ajouter\|retirer\|definir` | Gestion admin des soldes |
 | `/xp ajouter\|retirer\|definir` | Gestion admin de l'expérience |
 
@@ -158,6 +161,27 @@ au-dessus : ce slot devient un gain de +75 %.
 
 Un admin peut distribuer des caisses (giveaways) avec
 `/caisse donner @membre <rareté> <nombre>`, et en retirer avec `/caisse retirer`.
+
+## 🎰 Mini-jeux
+
+Chaque jeu s'ouvre par un menu (bouton **Jouer** + bouton **Cotes/Probabilités**).
+Fichiers : `cards.js`, `blackjack.js`, `roulette.js`, `horserace.js`, `casino-ui.js`.
+Les parties en cours vivent en mémoire (perdues si le bot redémarre en pleine partie).
+
+- **`/blackjack`** — chacun contre le croupier, plusieurs parties simultanées.
+  Victoire payée × un multiplicateur aléatoire **2.00–2.80** (RTP ~108 %,
+  avantage joueur), égalité = mise rendue, défaite = mise perdue.
+  Tirer / Rester / Doubler.
+- **`/roulette`** — table publique, chacun mise (type + montant, ou `plein` +
+  numéro), puis le créateur lance la roue. Roue européenne 37 cases, vraies
+  cotes, avantage maison **2,7 %**.
+- **`/course-de-cheval`** — 4 chevaux (noms Umamusume), cotes affichées, table
+  publique, gain = mise × cote. `HORSE_EDGE` réglable (défaut **-0.03** =
+  +3 % pour les joueurs ; une valeur positive redonne l'avantage à la maison).
+
+> ⚖️ Seule la roulette garde un avantage maison. Blackjack (+8 %) et course
+> (+3 %) sont volontairement à l'avantage des joueurs : ils injectent donc un
+> peu de pièces. La source principale reste le `/daily`.
 
 ## ⚠️ Notes
 - Sauvegarde `data.json` régulièrement.

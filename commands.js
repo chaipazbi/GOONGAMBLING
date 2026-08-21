@@ -175,6 +175,18 @@ export const commands = [
     ),
 
   new SlashCommandBuilder()
+    .setName('blackjack')
+    .setDescription('Joue au blackjack contre le croupier'),
+
+  new SlashCommandBuilder()
+    .setName('roulette')
+    .setDescription('Lance une table de roulette'),
+
+  new SlashCommandBuilder()
+    .setName('course-de-cheval')
+    .setDescription('Lance une course de chevaux'),
+
+  new SlashCommandBuilder()
     .setName('pari')
     .setDescription('Système de paris')
     .addSubcommand(buildCreer)

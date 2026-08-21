@@ -17,8 +17,17 @@ import * as ui from './ui.js';
 import { startScheduler } from './scheduler.js';
 import { today } from './time.js';
 import { rollShop, crateById, crateCount, giveCrates, takeCrates, openFromInventory } from './shop.js';
+import * as cui from './casino-ui.js';
+import * as BJ from './blackjack.js';
+import * as R from './roulette.js';
+import * as H from './horserace.js';
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
+// Parties/lobbies en mémoire (clé = id du message du jeu).
+const bjGames = new Map();
+const roulLobbies = new Map();
+const horseLobbies = new Map();
 
 client.once(Events.ClientReady, (c) => {
   console.log(`✅ Connecté en tant que ${c.user.tag}`);
@@ -66,6 +75,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isButton()) {
       if (interaction.customId.startsWith('shop:')) return await onShopButton(interaction);
       if (interaction.customId.startsWith('inv:')) return await onInventoryButton(interaction);
+      if (interaction.customId.startsWith('bj:')) return await onBlackjackButton(interaction);
+      if (interaction.customId.startsWith('roul:')) return await onRouletteButton(interaction);
+      if (interaction.customId.startsWith('horse:')) return await onHorseButton(interaction);
       return await onButton(interaction);
     }
     if (interaction.isStringSelectMenu()) return await onSelect(interaction);
@@ -85,6 +97,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
       case 'caisses':    return await cmdCaisses(interaction);
       case 'caisse':     return await cmdCaisseAdmin(interaction);
       case 'refresh-boutique': return await cmdRefreshBoutique(interaction);
+      case 'blackjack':  return await interaction.reply({ ...cui.blackjackMenu(), ephemeral: true });
+      case 'roulette':   return await interaction.reply({ ...cui.rouletteMenu(), ephemeral: true });
+      case 'course-de-cheval': return await interaction.reply({ ...cui.horseMenu(), ephemeral: true });
       case 'pari':       return await cmdPari(interaction);
     }
   } catch (err) {
@@ -224,6 +239,10 @@ async function onSelect(interaction) {
 // ============ SAISIE DU MONTANT ============
 
 async function onModal(interaction) {
+  if (interaction.customId.startsWith('bj:betmodal')) return await onBlackjackBetModal(interaction);
+  if (interaction.customId.startsWith('roul:betmodal')) return await onRouletteBetModal(interaction);
+  if (interaction.customId.startsWith('horse:betmodal')) return await onHorseBetModal(interaction);
+
   const [ns, action, betIdStr, optIdxStr] = interaction.customId.split(':');
   if (ns !== 'pari' || action !== 'amount') return;
 
@@ -505,6 +524,255 @@ async function cmdRefreshBoutique(interaction) {
   return interaction.reply(
     `🔄 Boutique renouvelée pour **${users.length}** joueur(s) du serveur. Nouvelle sélection dispo via \`/boutique\`.`
   );
+}
+
+// ============ JEUX : helpers ============
+
+function canRun(interaction, lobby) {
+  return lobby.ownerId === interaction.user.id ||
+    interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild);
+}
+
+function parseMise(raw, solde) {
+  const brut = String(raw).replace(/\s/g, '');
+  const montant = /^(all|tout|max)$/i.test(brut) ? solde : parseInt(brut, 10);
+  if (!Number.isInteger(montant) || montant <= 0) return { err: 'Montant invalide (ex : 100, ou `all`).' };
+  if (montant > solde) return { err: `Solde insuffisant. Tu as ${money(solde)}.` };
+  return { montant };
+}
+
+function miseModal(customId, titre, extra = []) {
+  const rows = [
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder().setCustomId('mise').setLabel('Montant').setStyle(TextInputStyle.Short).setRequired(true)
+    ),
+    ...extra,
+  ];
+  return new ModalBuilder().setCustomId(customId).setTitle(titre).addComponents(...rows);
+}
+
+// ============ BLACKJACK ============
+
+async function onBlackjackButton(interaction) {
+  const action = interaction.customId.split(':')[1];
+
+  if (action === 'menu') {
+    const sub = interaction.customId.split(':')[2];
+    if (sub === 'odds') return interaction.reply({ embeds: [cui.blackjackOddsEmbed()], ephemeral: true });
+    // play -> modale de mise
+    return interaction.showModal(miseModal('bj:betmodal', 'Blackjack — ta mise'));
+  }
+
+  // Actions de jeu
+  const game = bjGames.get(interaction.message.id);
+  if (!game) return priv(interaction, 'Cette partie est terminée.');
+  if (interaction.user.id !== game.userId) return priv(interaction, "Ce n'est pas ta partie.");
+
+  const g = interaction.guildId;
+  if (action === 'hit') BJ.hit(game);
+  else if (action === 'stand') BJ.stand(game);
+  else if (action === 'double') {
+    const extra = game.bet;
+    if (eco.getBalance(g, game.userId) < extra) return priv(interaction, 'Solde insuffisant pour doubler.');
+    eco.addBalance(g, game.userId, -extra);
+    BJ.double(game);
+  }
+
+  await interaction.update({
+    embeds: [cui.blackjackGameEmbed(game, interaction.member)],
+    components: cui.blackjackComponents(game),
+  });
+
+  if (game.status === 'done') {
+    if (game.payout) eco.addBalance(g, game.userId, game.payout);
+    bjGames.delete(interaction.message.id);
+  }
+}
+
+async function onBlackjackBetModal(interaction) {
+  const g = interaction.guildId;
+  const userId = interaction.user.id;
+  const solde = eco.getBalance(g, userId);
+  const { montant, err } = parseMise(interaction.fields.getTextInputValue('mise'), solde);
+  if (err) return priv(interaction, err);
+
+  eco.addBalance(g, userId, -montant);
+  const game = BJ.newGame(userId, montant);
+
+  await interaction.reply({
+    embeds: [cui.blackjackGameEmbed(game, interaction.member)],
+    components: cui.blackjackComponents(game),
+  });
+  const msg = await interaction.fetchReply();
+
+  if (game.status === 'done') {
+    if (game.payout) eco.addBalance(g, userId, game.payout);
+  } else {
+    bjGames.set(msg.id, game);
+  }
+}
+
+// ============ ROULETTE ============
+
+async function onRouletteButton(interaction) {
+  const parts = interaction.customId.split(':');
+  const action = parts[1];
+
+  if (action === 'menu') {
+    if (parts[2] === 'odds') return interaction.reply({ embeds: [cui.rouletteOddsEmbed()], ephemeral: true });
+    // new -> lobby public
+    const lobby = { guildId: interaction.guildId, channelId: interaction.channelId, ownerId: interaction.user.id, bets: [], open: true };
+    await interaction.reply({ embeds: [cui.rouletteLobbyEmbed(lobby)], components: cui.rouletteComponents(true) });
+    const msg = await interaction.fetchReply();
+    roulLobbies.set(msg.id, lobby);
+    return;
+  }
+
+  if (action === 'bet') {
+    const lobby = roulLobbies.get(interaction.message.id);
+    if (!lobby || !lobby.open) return priv(interaction, 'Cette table est fermée.');
+    const extra = [
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('type').setLabel('Type (rouge, noir, pair, plein...)').setStyle(TextInputStyle.Short).setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('numero').setLabel('Numéro (seulement si "plein", 0-36)').setStyle(TextInputStyle.Short).setRequired(false)
+      ),
+    ];
+    return interaction.showModal(miseModal(`roul:betmodal:${interaction.message.id}`, 'Roulette — ta mise', extra));
+  }
+
+  if (action === 'spin') {
+    const lobby = roulLobbies.get(interaction.message.id);
+    if (!lobby || !lobby.open) return priv(interaction, 'Cette table est déjà lancée ou introuvable.');
+    if (!canRun(interaction, lobby)) return priv(interaction, 'Seul le créateur (ou un admin) peut lancer la roue.');
+    if (lobby.bets.length === 0) return priv(interaction, 'Aucune mise sur la table.');
+
+    lobby.open = false;
+    const result = R.spin();
+    const payouts = lobby.bets.map((b) => {
+      const total = R.resolveBet(b, result);
+      if (total > 0) eco.addBalance(lobby.guildId, b.userId, total);
+      return { userId: b.userId, amount: b.amount, total };
+    });
+    await interaction.update({ embeds: [cui.rouletteLobbyEmbed(lobby)], components: [] });
+    await interaction.followUp({ embeds: [cui.rouletteResultEmbed(lobby, result, payouts)] });
+    roulLobbies.delete(interaction.message.id);
+  }
+}
+
+async function onRouletteBetModal(interaction) {
+  const lobbyId = interaction.customId.split(':')[2];
+  const lobby = roulLobbies.get(lobbyId);
+  if (!lobby || !lobby.open) return priv(interaction, 'Cette table est fermée.');
+
+  const g = interaction.guildId;
+  const userId = interaction.user.id;
+  const type = interaction.fields.getTextInputValue('type').trim().toLowerCase();
+  const def = R.BET_TYPES[type];
+  if (!def) return priv(interaction, `Type inconnu : \`${type}\`. Vois les cotes pour la liste.`);
+
+  let number = null;
+  if (def.needsNumber) {
+    number = parseInt(interaction.fields.getTextInputValue('numero'), 10);
+    if (!Number.isInteger(number) || number < 0 || number > 36) {
+      return priv(interaction, 'Pour un numéro plein, indique un numéro entre 0 et 36.');
+    }
+  }
+
+  const { montant, err } = parseMise(interaction.fields.getTextInputValue('mise'), eco.getBalance(g, userId));
+  if (err) return priv(interaction, err);
+
+  eco.addBalance(g, userId, -montant);
+  lobby.bets.push({ userId, type, number, amount: montant });
+
+  try {
+    const channel = await client.channels.fetch(lobby.channelId);
+    const msg = await channel.messages.fetch(lobbyId);
+    await msg.edit({ embeds: [cui.rouletteLobbyEmbed(lobby)], components: cui.rouletteComponents(true) });
+  } catch (e) {
+    console.error('MAJ lobby roulette :', e.message);
+  }
+
+  const nom = def.needsNumber ? `${def.label} ${number}` : def.label;
+  return priv(interaction, `✅ Mise de ${money(montant)} sur **${nom}** enregistrée.`);
+}
+
+// ============ COURSE DE CHEVAUX ============
+
+async function onHorseButton(interaction) {
+  const parts = interaction.customId.split(':');
+  const action = parts[1];
+
+  if (action === 'menu') {
+    if (parts[2] === 'odds') return interaction.reply({ embeds: [cui.horseOddsEmbed()], ephemeral: true });
+    const lobby = { guildId: interaction.guildId, channelId: interaction.channelId, ownerId: interaction.user.id, race: H.makeRace(), bets: [], open: true };
+    await interaction.reply({ embeds: [cui.horseLobbyEmbed(lobby)], components: cui.horseComponents(true) });
+    const msg = await interaction.fetchReply();
+    horseLobbies.set(msg.id, lobby);
+    return;
+  }
+
+  if (action === 'bet') {
+    const lobby = horseLobbies.get(interaction.message.id);
+    if (!lobby || !lobby.open) return priv(interaction, 'Cette course est fermée.');
+    const extra = [
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('cheval').setLabel('Numéro du cheval (1 à 4)').setStyle(TextInputStyle.Short).setRequired(true)
+      ),
+    ];
+    return interaction.showModal(miseModal(`horse:betmodal:${interaction.message.id}`, 'Course — ton pari', extra));
+  }
+
+  if (action === 'run') {
+    const lobby = horseLobbies.get(interaction.message.id);
+    if (!lobby || !lobby.open) return priv(interaction, 'Cette course est déjà lancée ou introuvable.');
+    if (!canRun(interaction, lobby)) return priv(interaction, 'Seul le créateur (ou un admin) peut lancer la course.');
+    if (lobby.bets.length === 0) return priv(interaction, 'Aucun pari sur la course.');
+
+    lobby.open = false;
+    const winner = H.runRace(lobby.race);
+    const payouts = lobby.bets.map((b) => {
+      const gagne = b.horse === winner;
+      const cote = lobby.race.horses[b.horse].cote;
+      const total = gagne ? Math.floor(b.amount * cote) : 0;
+      if (total > 0) eco.addBalance(lobby.guildId, b.userId, total);
+      return { userId: b.userId, amount: b.amount, total, cote };
+    });
+    await interaction.update({ embeds: [cui.horseLobbyEmbed(lobby)], components: [] });
+    await interaction.followUp({ embeds: [cui.horseResultEmbed(lobby, winner, payouts)] });
+    horseLobbies.delete(interaction.message.id);
+  }
+}
+
+async function onHorseBetModal(interaction) {
+  const lobbyId = interaction.customId.split(':')[2];
+  const lobby = horseLobbies.get(lobbyId);
+  if (!lobby || !lobby.open) return priv(interaction, 'Cette course est fermée.');
+
+  const g = interaction.guildId;
+  const userId = interaction.user.id;
+  const chevalNum = parseInt(interaction.fields.getTextInputValue('cheval'), 10);
+  if (!Number.isInteger(chevalNum) || chevalNum < 1 || chevalNum > 4) {
+    return priv(interaction, 'Choisis un cheval entre 1 et 4.');
+  }
+  const horse = chevalNum - 1;
+
+  const { montant, err } = parseMise(interaction.fields.getTextInputValue('mise'), eco.getBalance(g, userId));
+  if (err) return priv(interaction, err);
+
+  eco.addBalance(g, userId, -montant);
+  lobby.bets.push({ userId, horse, amount: montant });
+
+  try {
+    const channel = await client.channels.fetch(lobby.channelId);
+    const msg = await channel.messages.fetch(lobbyId);
+    await msg.edit({ embeds: [cui.horseLobbyEmbed(lobby)], components: cui.horseComponents(true) });
+  } catch (e) {
+    console.error('MAJ lobby course :', e.message);
+  }
+
+  return priv(interaction, `✅ Pari de ${money(montant)} sur **${lobby.race.horses[horse].nom}** enregistré.`);
 }
 
 // ============ COMMANDES : PARIS ============
