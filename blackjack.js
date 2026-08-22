@@ -3,8 +3,8 @@
 // tiré au hasard entre BJ_MIN_MULT et BJ_MAX_MULT. Égalité = mise rendue.
 import { drawCard, handValue, isBlackjack, isBust } from './cards.js';
 
-export const BJ_MIN_MULT = 2.00;
-export const BJ_MAX_MULT = 2.80;
+export const BJ_MIN_MULT = 2.10;
+export const BJ_MAX_MULT = 2.90;
 
 function randomMult() {
   const m = BJ_MIN_MULT + Math.random() * (BJ_MAX_MULT - BJ_MIN_MULT);
@@ -106,7 +106,7 @@ export const BJ_INFO = {
   winRate: 42.4,
   pushRate: 8.5,
   loseRate: 49.1,
-  note: 'Croupier tire jusqu\'à 17. Victoire payée × un multiplicateur aléatoire 2.00–2.80.',
+  note: 'Croupier tire jusqu\'à 17. Victoire payée × un multiplicateur aléatoire 2.10–2.90.',
 };
 
 // ---------------- MODE JOUEUR CONTRE JOUEUR (table publique) ----------------

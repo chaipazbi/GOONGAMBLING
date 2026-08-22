@@ -8,6 +8,9 @@ export function colorOf(n) {
   return RED.has(n) ? 'rouge' : 'noir';
 }
 
+// Bonus appliqué aux gains (>1 = avantage joueur). 1.10 => RTP ~107 %.
+export const ROULETTE_BONUS = parseFloat(process.env.ROULETTE_BONUS || '1.10');
+
 export function spin() {
   return Math.floor(Math.random() * 37); // 0..36
 }
@@ -34,12 +37,13 @@ export function resolveBet(bet, result) {
   const def = BET_TYPES[bet.type];
   if (!def) return 0;
   const gagne = def.needsNumber ? def.test(result, bet.number) : def.test(result);
-  return gagne ? bet.amount * (def.cote + 1) : 0;
+  return gagne ? Math.floor(bet.amount * (def.cote + 1) * ROULETTE_BONUS) : 0;
 }
 
 export const ROULETTE_INFO = {
   cases: 37,
   edge: 2.7,
+  bonus: ROULETTE_BONUS,
   cotes: [
     ['Rouge / Noir / Pair / Impair / Manque / Passe', '1:1 (≈48,6 %)'],
     ['Douzaine / Colonne', '2:1 (≈32,4 %)'],

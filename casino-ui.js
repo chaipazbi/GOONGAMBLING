@@ -127,7 +127,7 @@ export function rouletteOddsEmbed() {
   return new EmbedBuilder()
     .setTitle('🎡 Roulette — cotes')
     .setDescription(
-      `${ROULETTE_INFO.cases} cases (0 à 36), le 0 est vert → avantage maison **${ROULETTE_INFO.edge}%**.\n\n${lignes}` +
+      `${ROULETTE_INFO.cases} cases (0 à 36). Gains **boostés** : la roulette est légèrement à ton avantage.\n\n${lignes}` +
         '\n\nPour miser : type + montant (ex. `rouge 100`), et pour un numéro plein : `plein 17 50`.'
     )
     .setColor(0xe74c3c);
@@ -289,7 +289,7 @@ export function rouletteRulesEmbed() {
         '▫️ **Douzaine (1-12, 13-24, 25-36) / Colonne** → gain ×3',
         '▫️ **Numéro plein** (un numéro exact, ex. `plein 17`) → gain ×36',
         '',
-        '_Le 0 est vert : sur rouge/noir/pair/impair, le 0 fait perdre — c\'est l\'avantage maison._',
+        '_Le 0 est vert : sur rouge/noir/pair/impair, le 0 fait perdre. Mais les gains sont boostés pour rester à ton avantage._',
       ].join('\n')
     )
     .setColor(0xe74c3c);

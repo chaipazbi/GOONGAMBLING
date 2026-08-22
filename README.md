@@ -22,6 +22,10 @@ dans un simple `data.json`.
 | `/caisses` | Probabilités de chaque caisse |
 | `/caisse donner\|retirer` | Donner/retirer des caisses (admin) |
 | `/refresh-boutique [membre]` | Renouveler la boutique (admin) |
+| `/serveurs` | Liste les serveurs du bot (propriétaire, via `OWNER_ID`) |
+| `/slots` | Machine à sous (RTP ~108 %, gagnant joueur) |
+| `/objets` | Potions ×2 et retour arrière (boutique + inventaire) |
+| `/missions` | Missions du jour (3/jour, pièces + XP) |
 | `/blackjack` | Blackjack contre le croupier |
 | `/roulette` | Table de roulette (multijoueur) |
 | `/course-de-cheval` | Course de 4 chevaux (multijoueur) |
@@ -147,17 +151,13 @@ Les caisses achetées vont dans l'**inventaire** (`/inventaire`), où on les ouv
 quand on veut. **Le résultat d'une ouverture est public** dans le salon.
 `/caisses` affiche la table complète des probabilités.
 
-À l'ouverture (probabilités par caisse, du plus fréquent au plus rare) :
-**rien** 20 %, pièces < prix (×0.75/×0.90) 31 %, remboursement (×1) 14 %,
-profit (+25 % / +50 %) 21 %, **+10 XP** 6 %, **caisse supérieure** 5 % (ouverte
-automatiquement en chaîne), **+80 XP** 3 %. La mythique n'a pas de rang
-au-dessus : ce slot devient un gain de +75 %.
+À l'ouverture : **rien** dégressif selon la rareté (Commune 20 % → Mythique 0 %),
+puis pièces (×0.85 à ×1.70), remboursement, caisse supérieure et gains d'XP.
+Plus la caisse est rare, plus elle rapporte.
 
-> ⚖️ **Équilibrage** — pièces : on récupère en moyenne **~74 % de la mise**
-> (~554 pour une Commune à 750) : perte douce, avec de vraies chances de gagner,
-> et **1 chance sur 5 de ne rien avoir** (le risque). XP : ~3 par ouverture — un
-> bonus, pas de quoi casser les niveaux. Tout se règle dans `config.js`
-> (`CRATE_REWARDS`, prix, `spawn`).
+> ⚖️ **Rendement moyen** : Commune ~82 %, Rare ~85 %, Épique ~86 %,
+> Légendaire ~90 %, Mythique ~105 % (la seule rentable). Réglable via
+> `CRATE_RIEN` et `CRATE_REWARDS` dans `config.js`.
 
 Un admin peut distribuer des caisses (giveaways) avec
 `/caisse donner @membre <rareté> <nombre>`, et en retirer avec `/caisse retirer`.
@@ -168,16 +168,20 @@ Chaque jeu s'ouvre par un menu (bouton **Jouer** + bouton **Cotes/Probabilités*
 Fichiers : `cards.js`, `blackjack.js`, `roulette.js`, `horserace.js`, `casino-ui.js`.
 Les parties en cours vivent en mémoire (perdues si le bot redémarre en pleine partie).
 
-- **`/blackjack`** — chacun contre le croupier, plusieurs parties simultanées.
-  Victoire payée × un multiplicateur aléatoire **2.00–2.80** (RTP ~108 %,
-  avantage joueur), égalité = mise rendue, défaite = mise perdue.
-  Tirer / Rester / Doubler.
+- **`/blackjack`** — deux modes :
+  - **Table privée** : contre le croupier (bot). Victoire × multiplicateur
+    aléatoire **2.10–2.90** (RTP ~113 %), égalité = mise rendue, défaite = perdue.
+    Tirer / Rester / Doubler. Plusieurs parties privées en parallèle.
+  - **Table publique (JcJ)** : plusieurs joueurs, même mise d'entrée, chacun
+    joue sa main, le plus proche de 21 sans dépasser rafle la cagnotte (égalité
+    = partage, tous sautés = remboursés). Redistribution pure entre joueurs.
 - **`/roulette`** — table publique, chacun mise (type + montant, ou `plein` +
   numéro), puis le créateur lance la roue. Roue européenne 37 cases, vraies
-  cotes, avantage maison **2,7 %**.
+  cotes + **bonus joueur** (`ROULETTE_BONUS`, défaut 1.10 → RTP ~107 %).
 - **`/course-de-cheval`** — 4 chevaux (noms Umamusume), cotes affichées, table
-  publique, gain = mise × cote. `HORSE_EDGE` réglable (défaut **-0.03** =
-  +3 % pour les joueurs ; une valeur positive redonne l'avantage à la maison).
+  publique, gain = mise × cote. Favoris marqués (cote ~1.3–2.5, gagnent souvent
+  mais paient peu) et outsiders (jusqu'à ~15, rares mais gros gain). `HORSE_EDGE`
+  réglable (défaut **-0.08** = +8 % joueurs) ; `PROB_MIN` borne les grosses cotes.
 
 > ⚖️ Seule la roulette garde un avantage maison. Blackjack (+8 %) et course
 > (+3 %) sont volontairement à l'avantage des joueurs : ils injectent donc un
@@ -186,3 +190,20 @@ Les parties en cours vivent en mémoire (perdues si le bot redémarre en pleine 
 ## ⚠️ Notes
 - Sauvegarde `data.json` régulièrement.
 - Ne partage jamais ton `.env` ni ton token.
+
+## Objets, missions, niveaux (v9)
+
+- **Machine à sous** `/slots` — 3 rouleaux, RTP ~108 %. Gains fréquents (2 symboles)
+  et jackpots rares (3 symboles, 🎰 = ×60).
+- **Objets** `/objets` — achetables en boutique + **drop** sur les victoires :
+  - 🧪 **Potion ×2 pièces** (2000) — double le **bénéfice net** du prochain gain (tous jeux + paris). Drop ~1 %.
+  - 📗 **Potion ×2 XP** (1000) — double l'XP du prochain pari gagné. Drop ~2 %.
+  - ⏪ **Retour arrière** (5000) — rembourse la mise de ta dernière perte. Drop ~0,5 %.
+  On **arme** une potion, elle se consomme au prochain gain. Pas de plafond.
+- **Missions quotidiennes** `/missions` — 3 par jour (reset minuit). Objectif **tiré
+  au hasard** dans une fourchette, récompense **proportionnelle** à l'objectif.
+  Bouton « Voir toutes les quêtes possibles » pour afficher le catalogue complet.
+- **Bonus de niveau** — à chaque niveau atteint, prime = niveau × 200 pièces (une fois).
+
+> ⚠️ Réglages dans `items.js` (prix, taux de drop), `slots.js` (symboles/gains),
+> `missions.js` (catalogue/récompenses), `levels.js` (`LEVEL_BONUS_PER`).

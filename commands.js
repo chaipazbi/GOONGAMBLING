@@ -191,6 +191,19 @@ export const commands = [
     .setDescription('Liste les serveurs où le bot est présent (propriétaire uniquement)'),
 
   new SlashCommandBuilder()
+    .setName('slots')
+    .setDescription('Machine à sous'),
+
+  new SlashCommandBuilder()
+    .setName('objets')
+    .setDescription('Tes objets : potions et retour arrière (boutique + inventaire)')
+    .addUserOption((o) => o.setName('membre').setDescription("Voir les objets d'un membre")),
+
+  new SlashCommandBuilder()
+    .setName('missions')
+    .setDescription('Tes missions du jour'),
+
+  new SlashCommandBuilder()
     .setName('pari')
     .setDescription('Système de paris')
     .addSubcommand(buildCreer)

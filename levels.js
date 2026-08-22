@@ -3,6 +3,19 @@ import { ensureUser, save, allUsers } from './store.js';
 
 // XP cumulée nécessaire pour ATTEINDRE un niveau.
 // Niveau 1 = 0, 2 = 100, 3 = 300, 4 = 600, 5 = 1000 ... (+100 par palier)
+// Bonus de pièces par niveau atteint = niveau × LEVEL_BONUS_PER (versé une fois).
+export const LEVEL_BONUS_PER = 200;
+
+// Handler injecté par index.js pour créditer les pièces (évite l'import circulaire).
+let _coinBonus = null;
+export function setCoinBonusHandler(fn) {
+  _coinBonus = fn;
+}
+
+export function levelBonus(level) {
+  return level * LEVEL_BONUS_PER;
+}
+
 export function xpToReach(level) {
   return 50 * level * (level - 1);
 }
@@ -26,6 +39,11 @@ export function addXp(guildId, userId, amount) {
   u.xp = Math.max(0, u.xp + amount);
   const after = levelFromXp(u.xp);
   save();
+  if (after > before && _coinBonus) {
+    let bonus = 0;
+    for (let lvl = before + 1; lvl <= after; lvl++) bonus += levelBonus(lvl);
+    if (bonus > 0) _coinBonus(guildId, userId, bonus, after);
+  }
   return { gained: amount, xp: u.xp, level: after, levelUp: after > before };
 }
 

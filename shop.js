@@ -1,5 +1,5 @@
 // Boutique quotidienne, inventaire de caisses et ouverture.
-import { CRATES, CRATE_REWARDS, MYTHIC_TOP, SHOP_SLOTS } from './config.js';
+import { CRATES, CRATE_REWARDS, CRATE_RIEN, MYTHIC_TOP, SHOP_SLOTS } from './config.js';
 import { ensureUser, save } from './store.js';
 import { addBalance } from './economy.js';
 import { addXp } from './levels.js';
@@ -32,13 +32,20 @@ export function rollShop(n = SHOP_SLOTS) {
 
 function drawReward(crateId) {
   const isMythic = crateId === 'mythique';
-  let r = Math.random();
+
+  // 1) "rien" d'abord, avec une probabilité propre à la rareté.
+  const rien = CRATE_RIEN[crateId] ?? 0;
+  if (Math.random() < rien) return { kind: 'nothing' };
+
+  // 2) sinon, tirage pondéré parmi les récompenses.
+  const total = CRATE_REWARDS.reduce((s, o) => s + o.w, 0);
+  let r = Math.random() * total;
   for (const o of CRATE_REWARDS) {
-    if (r < o.p) {
+    r -= o.w;
+    if (r < 0) {
       if (o.kind === 'upgrade' && isMythic) return { ...MYTHIC_TOP };
       return o;
     }
-    r -= o.p;
   }
   return { kind: 'nothing' };
 }

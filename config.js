@@ -45,19 +45,27 @@ export const CRATES = [
   { id: 'mythique',   nom: 'Mythique',   prix: 3000, spawn: 4,  emoji: '🔴', couleur: 0xe74c3c },
 ];
 
-// Table de récompense commune à toutes les caisses (probabilités, somme = 1).
+// Probabilité de "rien" par rareté (dégressive ; la mythique n'en a pas).
+export const CRATE_RIEN = {
+  commun: 0.20,
+  rare: 0.17,
+  epic: 0.14,
+  legendaire: 0.11,
+  mythique: 0.0,
+};
+
+// Récompenses hors "rien", avec poids relatifs (w). Elles se répartissent la
+// probabilité restante (1 - rien) : moins de "rien" = plus de récompenses.
 // mult = multiplicateur du PRIX de la caisse. 'upgrade' = caisse du rang au-dessus.
-// Gradient : petites récompenses fréquentes, grosses rares. Rien ≈ pièces.
 export const CRATE_REWARDS = [
-  { kind: 'nothing',             p: 0.20 }, // rien (vraie mauvaise pioche)
-  { kind: 'coins',   mult: 0.75, p: 0.16 },
-  { kind: 'coins',   mult: 0.90, p: 0.15 },
-  { kind: 'coins',   mult: 1.00, p: 0.14 }, // remboursement (prix rendu)
-  { kind: 'coins',   mult: 1.25, p: 0.13 }, // +25 %
-  { kind: 'coins',   mult: 1.50, p: 0.08 }, // +50 %
-  { kind: 'xp',      xp: 10,     p: 0.06 }, // petit gain d'XP
-  { kind: 'upgrade',             p: 0.05 }, // caisse supérieure
-  { kind: 'xp',      xp: 80,     p: 0.03 }, // gros gain d'XP (rare)
+  { kind: 'coins',   mult: 0.85, w: 16 },
+  { kind: 'coins',   mult: 1.00, w: 15 }, // remboursement
+  { kind: 'coins',   mult: 1.20, w: 14 },
+  { kind: 'coins',   mult: 1.40, w: 10 },
+  { kind: 'coins',   mult: 1.70, w: 6 },  // gros gain
+  { kind: 'upgrade',             w: 5 },  // caisse supérieure
+  { kind: 'xp',      xp: 10,     w: 6 },
+  { kind: 'xp',      xp: 80,     w: 3 },
 ]
 
 // Caisse mythique : pas de rang supérieur → le slot 'upgrade' devient des pièces à +75 %.

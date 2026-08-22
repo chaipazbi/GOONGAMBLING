@@ -230,7 +230,7 @@ export function leaderboardEmbed(entries, kind) {
 
 // ===================== BOUTIQUE / CAISSES =====================
 import * as SHOP from './shop.js';
-import { CRATES, CRATE_REWARDS } from './config.js';
+import { CRATES, CRATE_REWARDS, CRATE_RIEN } from './config.js';
 
 export function shopEmbed(user) {
   const slots = user.shop?.slots ?? [];
@@ -351,18 +351,24 @@ export function cratesInfoEmbed() {
     .setDescription('Le montant est ce que tu **reçois** (ton gain net = montant − prix payé).')
     .setColor(0xe67e22);
 
-  const rewards = [...CRATE_REWARDS].sort((a, b) => b.p - a.p);
+  const totalW = CRATE_REWARDS.reduce((s, o) => s + o.w, 0);
   for (const c of CRATES) {
-    const lignes = rewards.map((o) => {
-      const pc = `${(o.p * 100).toFixed(0)}%`.padStart(3);
+    const rien = CRATE_RIEN[c.id] ?? 0;
+    const reste = 1 - rien;
+    const lignes = CRATE_REWARDS.map((o) => {
+      const p = reste * (o.w / totalW);
+      const pc = `${(p * 100).toFixed(0)}%`.padStart(3);
       if (o.kind === 'coins') return `\`${pc}\` ${Math.floor(c.prix * o.mult)} 🪙`;
       if (o.kind === 'xp') return `\`${pc}\` +${o.xp} XP`;
-      if (o.kind === 'nothing') return `\`${pc}\` rien`;
-      // upgrade
-      if (c.id === 'mythique') return `\` 5%\` ${Math.floor(c.prix * 1.75)} 🪙 (+75%)`;
-      const nxt = SHOP.nextCrate(c.id);
-      return `\`${pc}\` caisse ${nxt?.nom ?? '?'} 🎁`;
+      if (o.kind === 'upgrade') {
+        if (c.id === 'mythique') return `\`${pc}\` ${Math.floor(c.prix * 1.75)} 🪙 (+75%)`;
+        const nxt = SHOP.nextCrate(c.id);
+        return `\`${pc}\` caisse ${nxt?.nom ?? '?'} 🎁`;
+      }
+      return `\`${pc}\` ?`;
     });
+    if (rien > 0) lignes.unshift(`\`${`${(rien * 100).toFixed(0)}%`.padStart(3)}\` rien`);
+    lignes.sort((a, b) => parseInt(b.slice(1)) - parseInt(a.slice(1)));
     embed.addFields({ name: `${c.emoji} ${c.nom} — ${c.prix} 🪙`, value: lignes.join('\n'), inline: true });
   }
   return embed;

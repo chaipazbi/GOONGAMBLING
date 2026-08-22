@@ -14,7 +14,7 @@ const UMA_NAMES = [
 ];
 
 // Négatif = avantage joueur. -0.03 => les joueurs ont +3 % (RTP ~103 %).
-const HOUSE_EDGE = parseFloat(process.env.HORSE_EDGE || '-0.03');
+const HOUSE_EDGE = parseFloat(process.env.HORSE_EDGE || '-0.08');
 
 function shuffle(a) {
   const arr = [...a];

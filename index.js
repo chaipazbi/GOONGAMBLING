@@ -18,6 +18,10 @@ import { startScheduler } from './scheduler.js';
 import { today } from './time.js';
 import { rollShop, crateById, crateCount, giveCrates, takeCrates, openFromInventory } from './shop.js';
 import * as cui from './casino-ui.js';
+import * as SLOTS from './slots.js';
+import * as items from './items.js';
+import * as missions from './missions.js';
+import * as xui from './extra-ui.js';
 import * as BJ from './blackjack.js';
 import * as R from './roulette.js';
 import * as H from './horserace.js';
@@ -35,6 +39,7 @@ client.once(Events.ClientReady, (c) => {
   console.log(`   Monnaie : ${config.currencyName} (${config.currencySymbol})`);
   console.log(`   Serveurs : ${c.guilds.cache.size}`);
   startScheduler(client);
+  L.setCoinBonusHandler((g, u, amt) => eco.addBalance(g, u, amt));
 });
 
 const priv = (i, content) => i.reply({ content, ephemeral: true });
@@ -78,6 +83,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.customId.startsWith('inv:')) return await onInventoryButton(interaction);
       if (interaction.customId.startsWith('bjtable:')) return await onBjTableButton(interaction);
       if (interaction.customId.startsWith('bjhand:')) return await onBjHandButton(interaction);
+      if (interaction.customId.startsWith('slots:')) return await onSlotsButton(interaction);
+      if (interaction.customId.startsWith('obj:')) return await onObjetsButton(interaction);
+      if (interaction.customId.startsWith('miss:')) return await onMissionsButton(interaction);
       if (interaction.customId.startsWith('bj:')) return await onBlackjackButton(interaction);
       if (interaction.customId.startsWith('roul:')) return await onRouletteButton(interaction);
       if (interaction.customId.startsWith('horse:')) return await onHorseButton(interaction);
@@ -104,6 +112,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
       case 'roulette':   return await interaction.reply({ ...cui.rouletteMenu(), ephemeral: true });
       case 'course-de-cheval': return await interaction.reply({ ...cui.horseMenu(), ephemeral: true });
       case 'serveurs':   return await cmdServeurs(interaction);
+      case 'slots':      return await interaction.reply({ ...xui.slotsMenu(), ephemeral: true });
+      case 'objets':     return await cmdObjets(interaction);
+      case 'missions':   return await cmdMissions(interaction);
       case 'pari':       return await cmdPari(interaction);
     }
   } catch (err) {
@@ -221,6 +232,18 @@ async function onSelect(interaction) {
   if (correction) B.resettle(bet, gagnante);
   else B.settle(bet, gagnante);
 
+  if (!correction && bet.settlement) {
+    for (const e of bet.settlement.entries) {
+      if (e.kind === 'win') {
+        items.applyWin(bet.guildId, e.userId, e.net);
+        items.applyXp(bet.guildId, e.userId, e.xp);
+        missions.track(bet.guildId, e.userId, 'bet_win', 1);
+      } else if (e.kind === 'lose') {
+        items.recordLoss(bet.guildId, e.userId, e.stake, 'pari');
+      }
+    }
+  }
+
   await majMessage(interaction, bet);
   await interaction.update({
     content: correction
@@ -243,6 +266,7 @@ async function onSelect(interaction) {
 // ============ SAISIE DU MONTANT ============
 
 async function onModal(interaction) {
+  if (interaction.customId.startsWith('slots:betmodal')) return await onSlotsBetModal(interaction);
   if (interaction.customId.startsWith('bj:tablemodal')) return await onBjTableModal(interaction);
   if (interaction.customId.startsWith('bj:betmodal')) return await onBlackjackBetModal(interaction);
   if (interaction.customId.startsWith('roul:betmodal')) return await onRouletteBetModal(interaction);
@@ -268,6 +292,7 @@ async function onModal(interaction) {
   }
 
   const res = B.placeWager(bet, userId, option, montant);
+  if (res.ok) missions.track(g, userId, 'wager_total', montant);
   if (!res.ok) {
     if (res.reason === 'solde') return priv(interaction, `Solde insuffisant. Tu as ${money(solde)}.`);
     if (res.reason === 'min') return priv(interaction, `Mise minimum : ${money(config.minWager)}.`);
@@ -322,6 +347,7 @@ async function cmdDaily(interaction) {
     return priv(interaction, '⏳ Tu as déjà récupéré ton daily aujourd\'hui ! Reviens demain. 🌙');
   }
 
+  missions.track(g, userId, 'daily_done', 1);
   let msg = `🎁 Tu reçois ${money(res.amount)} et **+${config.xpDaily} XP** ! Nouveau solde : ${money(res.balance)}`;
   if (res.xp?.levelUp) msg += `\n🎉 Niveau **${res.xp.level}** atteint !`;
   return interaction.reply(msg);
@@ -477,6 +503,7 @@ async function onInventoryButton(interaction) {
 
   const result = openFromInventory(g, userId, id);
   if (!result) return priv(interaction, "Tu n'as plus cette caisse.");
+  missions.track(g, userId, 'crate_open', 1);
 
   // Rafraîchit l'inventaire (privé) puis publie le résultat dans le salon
   await interaction.update({
@@ -529,6 +556,112 @@ async function cmdRefreshBoutique(interaction) {
   return interaction.reply(
     `🔄 Boutique renouvelée pour **${users.length}** joueur(s) du serveur. Nouvelle sélection dispo via \`/boutique\`.`
   );
+}
+
+// ============ SLOTS / OBJETS / MISSIONS ============
+
+function describeExtra(w) {
+  const parts = [];
+  if (w.bonus > 0) parts.push(`🧪 ×2 pièces : +${w.bonus.toLocaleString('fr-FR')}`);
+  if (w.drops && w.drops.length) {
+    parts.push('🎁 Drop : ' + w.drops.map((id) => `${items.ITEMS[id].emoji} ${items.ITEMS[id].nom}`).join(', '));
+  }
+  return parts.join(' · ');
+}
+
+async function onSlotsButton(interaction) {
+  const sub = interaction.customId.split(':')[1];
+  if (sub === 'rules') return interaction.reply({ embeds: [xui.slotsRulesEmbed()], ephemeral: true });
+  return interaction.showModal(miseModal('slots:betmodal', 'Machine à sous — ta mise'));
+}
+
+async function onSlotsBetModal(interaction) {
+  const g = interaction.guildId;
+  const userId = interaction.user.id;
+  const { montant, err } = parseMise(interaction.fields.getTextInputValue('mise'), eco.getBalance(g, userId));
+  if (err) return priv(interaction, err);
+
+  eco.addBalance(g, userId, -montant);
+  const res = SLOTS.spin(montant);
+  let extra = '';
+  if (res.gain > 0) {
+    eco.addBalance(g, userId, res.gain);
+    extra = describeExtra(items.applyWin(g, userId, res.gain - montant));
+  } else {
+    items.recordLoss(g, userId, montant, 'machine à sous');
+  }
+  missions.track(g, userId, 'casino_play', 1);
+  missions.track(g, userId, 'slots_play', 1);
+  missions.track(g, userId, 'wager_total', montant);
+
+  return interaction.reply({ embeds: [xui.slotsResultEmbed(interaction.member, montant, res, extra)] });
+}
+
+async function cmdObjets(interaction) {
+  const cible = interaction.options.getUser('membre') || interaction.user;
+  const own = cible.id === interaction.user.id;
+  const membre = (await interaction.guild.members.fetch(cible.id).catch(() => null)) || cible;
+  const u = ensureUser(interaction.guildId, cible.id);
+  return interaction.reply({ embeds: [xui.objetsEmbed(u, membre)], components: xui.objetsComponents(u, own), ephemeral: true });
+}
+
+async function onObjetsButton(interaction) {
+  const [, action, id] = interaction.customId.split(':');
+  const g = interaction.guildId;
+  const userId = interaction.user.id;
+  const u = ensureUser(g, userId);
+
+  if (action === 'buy') {
+    const it = items.ITEMS[id];
+    if (!it) return priv(interaction, 'Objet inconnu.');
+    if (eco.getBalance(g, userId) < it.prix) return priv(interaction, `Solde insuffisant (${money(it.prix)}).`);
+    eco.addBalance(g, userId, -it.prix);
+    items.giveItem(g, userId, id, 1);
+    return interaction.update({ embeds: [xui.objetsEmbed(u, interaction.member)], components: xui.objetsComponents(u, true) });
+  }
+
+  if (action === 'arm') {
+    const r = items.arm(g, userId, id);
+    if (!r.ok) {
+      const msg = r.reason === 'none' ? "Tu n'as pas cet objet." : r.reason === 'already' ? 'Cette potion est déjà armée.' : 'Impossible.';
+      return priv(interaction, msg);
+    }
+    return interaction.update({ embeds: [xui.objetsEmbed(u, interaction.member)], components: xui.objetsComponents(u, true) });
+  }
+
+  if (action === 'rewind') {
+    const r = items.useRewind(g, userId);
+    if (!r.ok) {
+      return priv(interaction, r.reason === 'none' ? "Tu n'as pas de Retour arrière." : 'Aucune perte récente à annuler.');
+    }
+    await interaction.update({ embeds: [xui.objetsEmbed(u, interaction.member)], components: xui.objetsComponents(u, true) });
+    return interaction.followUp({ content: `⏪ Retour arrière : ${money(r.montant)} récupérés${r.label ? ` (${r.label})` : ''}.`, ephemeral: true });
+  }
+}
+
+async function cmdMissions(interaction) {
+  const m = missions.getMissions(interaction.guildId, interaction.user.id);
+  return interaction.reply({ embeds: [xui.missionsEmbed(m, interaction.member)], components: xui.missionsComponents(m), ephemeral: true });
+}
+
+async function onMissionsButton(interaction) {
+  const [, action, idxStr] = interaction.customId.split(':');
+  if (action === 'catalog') {
+    return interaction.reply({ embeds: [xui.missionsCatalogEmbed()], ephemeral: true });
+  }
+  if (action !== 'claim') return;
+  const g = interaction.guildId;
+  const userId = interaction.user.id;
+  const r = missions.claim(g, userId, parseInt(idxStr, 10));
+  if (!r.ok) {
+    const msg = r.reason === 'deja' ? 'Déjà récupérée.' : r.reason === 'incomplet' ? 'Mission pas encore terminée.' : 'Introuvable.';
+    return priv(interaction, msg);
+  }
+  const m = missions.getMissions(g, userId);
+  let txt = `🎯 Mission accomplie : +${money(r.coins)} et +${r.xp} XP.`;
+  if (r.levelUp) txt += ` 🎉 Niveau **${r.level}** atteint !`;
+  await interaction.update({ embeds: [xui.missionsEmbed(m, interaction.member)], components: xui.missionsComponents(m) });
+  return interaction.followUp({ content: txt, ephemeral: true });
 }
 
 // ============ PROPRIÉTAIRE ============
@@ -619,7 +752,7 @@ async function onBlackjackButton(interaction) {
   });
 
   if (game.status === 'done') {
-    if (game.payout) eco.addBalance(g, game.userId, game.payout);
+    await bjResolve(interaction, g, game.userId, game);
     bjGames.delete(interaction.message.id);
   }
 }
@@ -640,10 +773,24 @@ async function onBlackjackBetModal(interaction) {
   });
   const msg = await interaction.fetchReply();
 
+  missions.track(g, userId, 'wager_total', montant);
   if (game.status === 'done') {
-    if (game.payout) eco.addBalance(g, userId, game.payout);
+    await bjResolve(interaction, g, userId, game);
   } else {
     bjGames.set(msg.id, game);
+  }
+}
+
+async function bjResolve(interaction, g, userId, game) {
+  missions.track(g, userId, 'casino_play', 1);
+  if (game.outcome === 'win' || game.outcome === 'blackjack') {
+    eco.addBalance(g, userId, game.payout);
+    const extra = describeExtra(items.applyWin(g, userId, game.payout - game.bet));
+    if (extra) interaction.followUp({ content: extra, ephemeral: true }).catch(() => {});
+  } else if (game.outcome === 'push') {
+    eco.addBalance(g, userId, game.payout);
+  } else {
+    items.recordLoss(g, userId, game.bet, 'blackjack');
   }
 }
 
@@ -674,11 +821,20 @@ async function onBjTableModal(interaction) {
 async function resolveBjTable(table) {
   const result = BJ.resolvePvp(table.players);
   const pot = table.ante * table.players.length;
+  const gagnants = new Set(result.winners);
   if (result.allBust) {
     for (const p of table.players) eco.addBalance(table.guildId, p.userId, table.ante);
   } else {
     const part = Math.floor(pot / result.winners.length);
-    for (const uid of result.winners) eco.addBalance(table.guildId, uid, part);
+    for (const uid of result.winners) {
+      eco.addBalance(table.guildId, uid, part);
+      items.applyWin(table.guildId, uid, part - table.ante);
+    }
+  }
+  // Objets (perte) + mission casino pour chaque joueur
+  for (const p of table.players) {
+    missions.track(table.guildId, p.userId, 'casino_play', 1);
+    if (!result.allBust && !gagnants.has(p.userId)) items.recordLoss(table.guildId, p.userId, table.ante, 'blackjack (table)');
   }
   table.phase = 'done';
   table._result = result;
@@ -764,6 +920,23 @@ async function onBjHandButton(interaction) {
   }
 }
 
+// Applique objets (×2, drops, perte) + mission casino par joueur, à partir
+// d'une liste de paris résolus [{userId, amount, total}].
+function applyGameOutcomes(guildId, payouts, label) {
+  const parJoueur = {};
+  for (const p of payouts) {
+    parJoueur[p.userId] ??= { mise: 0, rendu: 0 };
+    parJoueur[p.userId].mise += p.amount;
+    parJoueur[p.userId].rendu += p.total;
+  }
+  for (const [uid, v] of Object.entries(parJoueur)) {
+    const net = v.rendu - v.mise;
+    if (net > 0) items.applyWin(guildId, uid, net);
+    else if (net < 0) items.recordLoss(guildId, uid, -net, label);
+    missions.track(guildId, uid, 'casino_play', 1);
+  }
+}
+
 // ============ ROULETTE ============
 
 async function onRouletteButton(interaction) {
@@ -808,6 +981,7 @@ async function onRouletteButton(interaction) {
       if (total > 0) eco.addBalance(lobby.guildId, b.userId, total);
       return { userId: b.userId, amount: b.amount, total };
     });
+    applyGameOutcomes(lobby.guildId, payouts, 'roulette');
     await interaction.update({ embeds: [cui.rouletteLobbyEmbed(lobby)], components: [] });
     await interaction.followUp({ embeds: [cui.rouletteResultEmbed(lobby, result, payouts)] });
     roulLobbies.delete(interaction.message.id);
@@ -893,6 +1067,8 @@ async function onHorseButton(interaction) {
       if (total > 0) eco.addBalance(lobby.guildId, b.userId, total);
       return { userId: b.userId, amount: b.amount, total, cote };
     });
+    applyGameOutcomes(lobby.guildId, payouts, 'course');
+    for (const p of payouts) if (p.total > 0) missions.track(lobby.guildId, p.userId, 'race_win', 1);
     await interaction.update({ embeds: [cui.horseLobbyEmbed(lobby)], components: [] });
     await interaction.followUp({ embeds: [cui.horseResultEmbed(lobby, winner, payouts)] });
     horseLobbies.delete(interaction.message.id);
