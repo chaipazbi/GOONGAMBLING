@@ -82,8 +82,8 @@ export function objetsComponents(user, own) {
     btn('obj:buy:rewind', 'Acheter Retour', ButtonStyle.Secondary, '⏪')
   );
   const usage = new ActionRowBuilder().addComponents(
-    btn('obj:arm:potion_coins', 'Armer ×2 pièces', ButtonStyle.Primary, '🧪').setDisabled(itemCount(user, 'potion_coins') < 1 || hasBuff(user, 'coins2x')),
-    btn('obj:arm:potion_xp', 'Armer ×2 XP', ButtonStyle.Primary, '📗').setDisabled(itemCount(user, 'potion_xp') < 1 || hasBuff(user, 'xp2x')),
+    btn('obj:arm:potion_coins', 'Utiliser ×2 pièces', ButtonStyle.Primary, '🧪').setDisabled(itemCount(user, 'potion_coins') < 1 || hasBuff(user, 'coins2x')),
+    btn('obj:arm:potion_xp', 'Utiliser ×2 XP', ButtonStyle.Primary, '📗').setDisabled(itemCount(user, 'potion_xp') < 1 || hasBuff(user, 'xp2x')),
     btn('obj:rewind', 'Retour arrière', ButtonStyle.Danger, '⏪').setDisabled(itemCount(user, 'rewind') < 1)
   );
   return [achat, usage];

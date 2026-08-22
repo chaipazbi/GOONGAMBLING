@@ -155,6 +155,31 @@ export function settlementEmbed(bet) {
     .setColor(0x2ecc71);
 }
 
+function casinoField(user) {
+  const cs = user.casino || {};
+  const jeux = [
+    ['🃏 Blackjack', 'blackjack'],
+    ['🎡 Roulette', 'roulette'],
+    ['🐎 Course', 'course'],
+    ['🎰 Slots', 'slots'],
+  ];
+  let tp = 0, tm = 0, tg = 0;
+  const lignes = jeux.map(([label, key]) => {
+    const c = cs[key] || { parties: 0, mise: 0, gain: 0 };
+    tp += c.parties; tm += c.mise; tg += c.gain;
+    return `${label} : **${c.parties}** parties · misé ${money(c.mise)} · récupéré ${money(c.gain)}`;
+  });
+  const net = tg - tm;
+  return {
+    name: '🎲 Casino',
+    value:
+      lignes.join('\n') +
+      `\n**Total : ${tp} parties · misé ${money(tm)} · récupéré ${money(tg)}**\n` +
+      `Bilan casino : **${net >= 0 ? '+' : ''}${net.toLocaleString('fr-FR')}** ${config.currencySymbol}`,
+    inline: false,
+  };
+}
+
 export function profilEmbed(user, member) {
   const p = L.levelProgress(user.xp);
   const s = user.stats;
@@ -193,6 +218,7 @@ export function profilEmbed(user, member) {
           `Bilan caisses : **${crateNet >= 0 ? '+' : ''}${crateNet.toLocaleString('fr-FR')}** ${config.currencySymbol}`,
         inline: false,
       },
+      casinoField(user),
       {
         name: '🎒 Inventaire',
         value: SHOP.inventoryList(user).map((e) => {

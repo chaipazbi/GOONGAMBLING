@@ -9,7 +9,7 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import { config, money } from './config.js';
-import { ensureUser, save, getData } from './store.js';
+import { ensureUser, save, getData, recordCasino } from './store.js';
 import * as eco from './economy.js';
 import * as L from './levels.js';
 import * as B from './bets.js';
@@ -590,6 +590,7 @@ async function onSlotsBetModal(interaction) {
   } else {
     items.recordLoss(g, userId, montant, 'machine à sous');
   }
+  recordCasino(g, userId, 'slots', montant, res.gain);
   missions.track(g, userId, 'casino_play', 1);
   missions.track(g, userId, 'slots_play', 1);
   missions.track(g, userId, 'wager_total', montant);
@@ -782,6 +783,7 @@ async function onBlackjackBetModal(interaction) {
 }
 
 async function bjResolve(interaction, g, userId, game) {
+  recordCasino(g, userId, 'blackjack', game.bet, game.payout || 0);
   missions.track(g, userId, 'casino_play', 1);
   if (game.outcome === 'win' || game.outcome === 'blackjack') {
     eco.addBalance(g, userId, game.payout);
@@ -833,6 +835,9 @@ async function resolveBjTable(table) {
   }
   // Objets (perte) + mission casino pour chaque joueur
   for (const p of table.players) {
+    const gagnant = !result.allBust && gagnants.has(p.userId);
+    const gain = result.allBust ? table.ante : gagnant ? Math.floor(pot / result.winners.length) : 0;
+    recordCasino(table.guildId, p.userId, 'blackjack', table.ante, gain);
     missions.track(table.guildId, p.userId, 'casino_play', 1);
     if (!result.allBust && !gagnants.has(p.userId)) items.recordLoss(table.guildId, p.userId, table.ante, 'blackjack (table)');
   }
@@ -933,6 +938,7 @@ function applyGameOutcomes(guildId, payouts, label) {
     const net = v.rendu - v.mise;
     if (net > 0) items.applyWin(guildId, uid, net);
     else if (net < 0) items.recordLoss(guildId, uid, -net, label);
+    recordCasino(guildId, uid, label, v.mise, v.rendu);
     missions.track(guildId, uid, 'casino_play', 1);
   }
 }

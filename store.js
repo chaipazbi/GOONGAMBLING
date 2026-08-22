@@ -38,6 +38,12 @@ function defaultUser() {
       crateWon: 0,
       crateXp: 0,
     },
+    casino: {
+      blackjack: { parties: 0, mise: 0, gain: 0 },
+      roulette: { parties: 0, mise: 0, gain: 0 },
+      course: { parties: 0, mise: 0, gain: 0 },
+      slots: { parties: 0, mise: 0, gain: 0 },
+    },
   };
 }
 
@@ -57,6 +63,8 @@ function migrateUser(u) {
   u.buffs ??= {};
   u.stats ??= {};
   for (const k of Object.keys(d.stats)) u.stats[k] ??= 0;
+  u.casino ??= {};
+  for (const k of Object.keys(d.casino)) u.casino[k] ??= { parties: 0, mise: 0, gain: 0 };
   return u;
 }
 
@@ -174,3 +182,15 @@ export function nextBetId(guildId) {
 }
 
 load();
+
+// Enregistre une partie de casino pour les stats (parties, misé, récupéré).
+export function recordCasino(guildId, userId, game, mise, gain) {
+  const u = ensureUser(guildId, userId);
+  u.casino ??= {};
+  u.casino[game] ??= { parties: 0, mise: 0, gain: 0 };
+  const c = u.casino[game];
+  c.parties += 1;
+  c.mise += mise;
+  c.gain += gain;
+  save();
+}
