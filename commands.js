@@ -167,11 +167,23 @@ export const commands = [
     ),
 
   new SlashCommandBuilder()
-    .setName('refresh-boutique')
-    .setDescription('Force le renouvellement de la boutique (admin)')
+    .setName('refresh')
+    .setDescription('Renouvelle boutique / daily / missions (admin)')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addStringOption((o) =>
+      o
+        .setName('type')
+        .setDescription('Que veux-tu renouveler ?')
+        .setRequired(true)
+        .addChoices(
+          { name: 'Boutique (caisses)', value: 'boutique' },
+          { name: 'Daily', value: 'daily' },
+          { name: 'Missions', value: 'missions' },
+          { name: 'Tout', value: 'tout' }
+        )
+    )
     .addUserOption((o) =>
-      o.setName('membre').setDescription("Cibler un seul membre (sinon tout le serveur)")
+      o.setName('membre').setDescription('Cibler un seul membre (sinon tout le serveur)')
     ),
 
   new SlashCommandBuilder()

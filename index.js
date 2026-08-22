@@ -107,7 +107,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       case 'inventaire': return await cmdInventaire(interaction);
       case 'caisses':    return await cmdCaisses(interaction);
       case 'caisse':     return await cmdCaisseAdmin(interaction);
-      case 'refresh-boutique': return await cmdRefreshBoutique(interaction);
+      case 'refresh': return await cmdRefresh(interaction);
       case 'blackjack':  return await interaction.reply({ ...cui.blackjackMenu(), ephemeral: true });
       case 'roulette':   return await interaction.reply({ ...cui.rouletteMenu(), ephemeral: true });
       case 'course-de-cheval': return await interaction.reply({ ...cui.horseMenu(), ephemeral: true });
@@ -538,24 +538,36 @@ async function cmdCaisseAdmin(interaction) {
   }
 }
 
-async function cmdRefreshBoutique(interaction) {
+async function cmdRefresh(interaction) {
   const g = interaction.guildId;
+  const type = interaction.options.getString('type');
   const cible = interaction.options.getUser('membre');
-  const fresh = () => ({ date: today(), slots: rollShop().map((id) => ({ id, bought: false })) });
+  const freshShop = () => ({ date: today(), slots: rollShop().map((id) => ({ id, bought: false })) });
+
+  const applyTo = (u) => {
+    if (type === 'boutique' || type === 'tout') u.shop = freshShop();
+    if (type === 'daily' || type === 'tout') u.lastDailyDate = null;
+    if (type === 'missions' || type === 'tout') u.missions = null;
+  };
+
+  const label = {
+    boutique: 'La boutique',
+    daily: 'Le daily',
+    missions: 'Les missions',
+    tout: 'Boutique, daily et missions',
+  }[type];
 
   if (cible) {
-    ensureUser(g, cible.id).shop = fresh();
+    applyTo(ensureUser(g, cible.id));
     save();
-    return interaction.reply(`🔄 Boutique de ${cible} renouvelée — elle/il peut refaire \`/boutique\`.`);
+    return interaction.reply(`🔄 ${label} : renouvelé pour ${cible}.`);
   }
 
   const guild = getData().guilds[g];
   const users = guild ? Object.values(guild.users) : [];
-  for (const u of users) u.shop = fresh();
+  for (const u of users) applyTo(u);
   save();
-  return interaction.reply(
-    `🔄 Boutique renouvelée pour **${users.length}** joueur(s) du serveur. Nouvelle sélection dispo via \`/boutique\`.`
-  );
+  return interaction.reply(`🔄 ${label} : renouvelé pour **${users.length}** joueur(s) du serveur.`);
 }
 
 // ============ SLOTS / OBJETS / MISSIONS ============
