@@ -21,11 +21,11 @@ dans un simple `data.json`.
 | `/inventaire [membre]` | Voir/ouvrir ses caisses |
 | `/caisses` | Probabilités de chaque caisse |
 | `/caisse donner\|retirer` | Donner/retirer des caisses (admin) |
-| `/refresh-boutique [membre]` | Renouveler la boutique (admin) |
+| `/refresh <type> [membre]` | Renouveler boutique / daily / missions / tout (admin) |
 | `/serveurs` | Liste les serveurs du bot (propriétaire, via `OWNER_ID`) |
 | `/slots` | Machine à sous (RTP ~108 %, gagnant joueur) |
 | `/objets` | Potions ×2 et retour arrière (boutique + inventaire) |
-| `/missions` | Missions du jour (3/jour, pièces + XP) |
+| `/missions` | Missions du jour (objectif aléatoire, pièces + XP) |
 | `/blackjack` | Blackjack contre le croupier |
 | `/roulette` | Table de roulette (multijoueur) |
 | `/course-de-cheval` | Course de 4 chevaux (multijoueur) |
@@ -195,6 +195,9 @@ Les parties en cours vivent en mémoire (perdues si le bot redémarre en pleine 
 
 - **Machine à sous** `/slots` — 3 rouleaux, RTP ~108 %. Gains fréquents (2 symboles)
   et jackpots rares (3 symboles, 🎰 = ×60).
+- **Plafond de mise** sur tous les mini-jeux : **10 000** (`MAX_MISE_CASINO`). Les paris restent illimités.
+- **XP mini-jeux** : sur une **victoire**, XP = mise × taux aléatoire **1–2 %** (`XP_CASINO_MIN`/`MAX`). Défaite ou égalité = 0 XP. Pas de plafond.
+- **Retour arrière** limité à **1 achat par jour**.
 - **Objets** `/objets` — achetables en boutique + **drop** sur les victoires :
   - 🧪 **Potion ×2 pièces** (2000) — double le **bénéfice net** du prochain gain (tous jeux + paris). Drop ~1 %.
   - 📗 **Potion ×2 XP** (1000) — double l'XP du prochain pari gagné. Drop ~2 %.
@@ -204,6 +207,8 @@ Les parties en cours vivent en mémoire (perdues si le bot redémarre en pleine 
   au hasard** dans une fourchette, récompense **proportionnelle** à l'objectif.
   Bouton « Voir toutes les quêtes possibles » pour afficher le catalogue complet.
 - **Bonus de niveau** — à chaque niveau atteint, prime = niveau × 200 pièces (une fois).
+- **Stats casino** — `/stats` affiche par jeu (blackjack, roulette, course, slots) le
+  nombre de parties, le total misé, récupéré et le bilan net.
 
 > ⚠️ Réglages dans `items.js` (prix, taux de drop), `slots.js` (symboles/gains),
 > `missions.js` (catalogue/récompenses), `levels.js` (`LEVEL_BONUS_PER`).

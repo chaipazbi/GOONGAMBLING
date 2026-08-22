@@ -24,6 +24,7 @@ function defaultUser() {
     buffs: {},
     lastLoss: null,
     missions: null,
+    itemBuys: {},
     autoDaily: null,
     lastAutoDate: null,
     stats: {
@@ -61,6 +62,7 @@ function migrateUser(u) {
   u.crates ??= {};
   u.items ??= {};
   u.buffs ??= {};
+  u.itemBuys ??= {};
   u.stats ??= {};
   for (const k of Object.keys(d.stats)) u.stats[k] ??= 0;
   u.casino ??= {};

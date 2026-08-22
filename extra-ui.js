@@ -2,7 +2,7 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { money, config } from './config.js';
 import { SYMBOLS } from './slots.js';
-import { ITEMS, itemList, itemCount, hasBuff } from './items.js';
+import { ITEMS, itemList, itemCount, hasBuff, canBuy } from './items.js';
 import { catalogInfo } from './missions.js';
 import { progressBar } from './levels.js';
 
@@ -79,7 +79,7 @@ export function objetsComponents(user, own) {
   const achat = new ActionRowBuilder().addComponents(
     btn('obj:buy:potion_coins', 'Acheter ×2 pièces', ButtonStyle.Secondary, '🧪'),
     btn('obj:buy:potion_xp', 'Acheter ×2 XP', ButtonStyle.Secondary, '📗'),
-    btn('obj:buy:rewind', 'Acheter Retour', ButtonStyle.Secondary, '⏪')
+    btn('obj:buy:rewind', 'Acheter Retour', ButtonStyle.Secondary, '⏪').setDisabled(!canBuy(user, 'rewind'))
   );
   const usage = new ActionRowBuilder().addComponents(
     btn('obj:arm:potion_coins', 'Utiliser ×2 pièces', ButtonStyle.Primary, '🧪').setDisabled(itemCount(user, 'potion_coins') < 1 || hasBuff(user, 'coins2x')),

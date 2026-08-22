@@ -599,6 +599,11 @@ async function onSlotsBetModal(interaction) {
   if (res.gain > 0) {
     eco.addBalance(g, userId, res.gain);
     extra = describeExtra(items.applyWin(g, userId, res.gain - montant));
+    const xp = casinoXp(montant);
+    if (xp > 0) {
+      L.addXp(g, userId, xp);
+      extra = [extra, `+${xp} XP`].filter(Boolean).join(' · ');
+    }
   } else {
     items.recordLoss(g, userId, montant, 'machine à sous');
   }
@@ -627,9 +632,11 @@ async function onObjetsButton(interaction) {
   if (action === 'buy') {
     const it = items.ITEMS[id];
     if (!it) return priv(interaction, 'Objet inconnu.');
+    if (!items.canBuy(u, id)) return priv(interaction, `Tu as atteint la limite d'achat du jour pour ${it.nom} (${it.dailyMax}/jour).`);
     if (eco.getBalance(g, userId) < it.prix) return priv(interaction, `Solde insuffisant (${money(it.prix)}).`);
     eco.addBalance(g, userId, -it.prix);
     items.giveItem(g, userId, id, 1);
+    items.registerBuy(g, userId, id);
     return interaction.update({ embeds: [xui.objetsEmbed(u, interaction.member)], components: xui.objetsComponents(u, true) });
   }
 
@@ -712,11 +719,19 @@ function canRun(interaction, lobby) {
     interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild);
 }
 
-function parseMise(raw, solde) {
+// XP d'une partie gagnée : mise × un taux aléatoire (défaut 1 % à 2 %).
+function casinoXp(mise) {
+  const taux = config.xpCasinoMin + Math.random() * (config.xpCasinoMax - config.xpCasinoMin);
+  return Math.floor(mise * taux);
+}
+
+function parseMise(raw, solde, max = config.maxMiseCasino) {
   const brut = String(raw).replace(/\s/g, '');
-  const montant = /^(all|tout|max)$/i.test(brut) ? solde : parseInt(brut, 10);
+  // "all" respecte le plafond : on prend le minimum entre le solde et le max.
+  let montant = /^(all|tout|max)$/i.test(brut) ? Math.min(solde, max || solde) : parseInt(brut, 10);
   if (!Number.isInteger(montant) || montant <= 0) return { err: 'Montant invalide (ex : 100, ou `all`).' };
   if (montant > solde) return { err: `Solde insuffisant. Tu as ${money(solde)}.` };
+  if (max && montant > max) return { err: `Mise trop élevée : le plafond est de ${money(max)} sur les mini-jeux.` };
   return { montant };
 }
 
@@ -799,7 +814,10 @@ async function bjResolve(interaction, g, userId, game) {
   missions.track(g, userId, 'casino_play', 1);
   if (game.outcome === 'win' || game.outcome === 'blackjack') {
     eco.addBalance(g, userId, game.payout);
-    const extra = describeExtra(items.applyWin(g, userId, game.payout - game.bet));
+    const xp = casinoXp(game.bet);
+    if (xp > 0) L.addXp(g, userId, xp);
+    let extra = describeExtra(items.applyWin(g, userId, game.payout - game.bet));
+    if (xp > 0) extra = [extra, `+${xp} XP`].filter(Boolean).join(' · ');
     if (extra) interaction.followUp({ content: extra, ephemeral: true }).catch(() => {});
   } else if (game.outcome === 'push') {
     eco.addBalance(g, userId, game.payout);
@@ -850,6 +868,10 @@ async function resolveBjTable(table) {
     const gagnant = !result.allBust && gagnants.has(p.userId);
     const gain = result.allBust ? table.ante : gagnant ? Math.floor(pot / result.winners.length) : 0;
     recordCasino(table.guildId, p.userId, 'blackjack', table.ante, gain);
+    if (gagnant) {
+      const xp = casinoXp(table.ante);
+      if (xp > 0) L.addXp(table.guildId, p.userId, xp);
+    }
     missions.track(table.guildId, p.userId, 'casino_play', 1);
     if (!result.allBust && !gagnants.has(p.userId)) items.recordLoss(table.guildId, p.userId, table.ante, 'blackjack (table)');
   }
@@ -948,8 +970,13 @@ function applyGameOutcomes(guildId, payouts, label) {
   }
   for (const [uid, v] of Object.entries(parJoueur)) {
     const net = v.rendu - v.mise;
-    if (net > 0) items.applyWin(guildId, uid, net);
-    else if (net < 0) items.recordLoss(guildId, uid, -net, label);
+    if (net > 0) {
+      items.applyWin(guildId, uid, net);
+      const xp = casinoXp(v.mise);
+      if (xp > 0) L.addXp(guildId, uid, xp);
+    } else if (net < 0) {
+      items.recordLoss(guildId, uid, -net, label);
+    }
     recordCasino(guildId, uid, label, v.mise, v.rendu);
     missions.track(guildId, uid, 'casino_play', 1);
   }

@@ -2,11 +2,12 @@
 import { ensureUser, save } from './store.js';
 import { addBalance } from './economy.js';
 import { addXp } from './levels.js';
+import { today } from './time.js';
 
 export const ITEMS = {
   potion_coins: { nom: 'Potion ×2 pièces', emoji: '🧪', prix: 2000, desc: 'Double le bénéfice de ton prochain gain (jeu ou pari).' },
   potion_xp:    { nom: 'Potion ×2 XP',     emoji: '📗', prix: 1000, desc: "Double l'XP de ton prochain pari gagné." },
-  rewind:       { nom: 'Retour arrière',    emoji: '⏪', prix: 5000, desc: 'Récupère la mise de ta dernière perte.' },
+  rewind:       { nom: 'Retour arrière',    emoji: '⏪', prix: 5000, dailyMax: 1, desc: 'Récupère la mise de ta dernière perte. (max 1 achat/jour)' },
 };
 
 // Taux de drop lors d'une victoire (jeu ou pari gagné).
@@ -114,4 +115,25 @@ export function useRewind(guildId, userId) {
   u.lastLoss = null;
   save();
   return { ok: true, montant, label };
+}
+
+// ---- Limite d'achat journalière (ex : retour arrière = 1/jour) ----
+export function boughtToday(user, id) {
+  const b = (user.itemBuys || {})[id];
+  return b && b.date === today() ? b.count : 0;
+}
+
+export function canBuy(user, id) {
+  const max = ITEMS[id]?.dailyMax;
+  if (!max) return true;
+  return boughtToday(user, id) < max;
+}
+
+export function registerBuy(guildId, userId, id) {
+  const u = ensureUser(guildId, userId);
+  u.itemBuys ??= {};
+  const t = today();
+  if (!u.itemBuys[id] || u.itemBuys[id].date !== t) u.itemBuys[id] = { date: t, count: 0 };
+  u.itemBuys[id].count += 1;
+  save();
 }
