@@ -292,7 +292,6 @@ async function onModal(interaction) {
   }
 
   const res = B.placeWager(bet, userId, option, montant);
-  if (res.ok) missions.track(g, userId, 'wager_total', montant);
   if (!res.ok) {
     if (res.reason === 'solde') return priv(interaction, `Solde insuffisant. Tu as ${money(solde)}.`);
     if (res.reason === 'min') return priv(interaction, `Mise minimum : ${money(config.minWager)}.`);
@@ -307,6 +306,7 @@ async function onModal(interaction) {
     ephemeral: true,
   });
   await majMessage(interaction, bet);
+  missions.track(interaction.guildId, userId, 'wager_total', montant);
 }
 
 // ============ COMMANDES : MONNAIE ============
