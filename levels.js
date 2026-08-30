@@ -12,6 +12,17 @@ export function setCoinBonusHandler(fn) {
   _coinBonus = fn;
 }
 
+// Handler injecté (index.js) pour notifier une montée de niveau dans un salon.
+let _levelUp = null;
+export function setLevelUpHandler(fn) {
+  _levelUp = fn;
+}
+
+// XP gagnée pour un message, selon sa longueur (bornée).
+export function messageXp(length, { min = 2, max = 30, charDiv = 15 } = {}) {
+  return Math.min(max, min + Math.floor((length || 0) / charDiv));
+}
+
 export function levelBonus(level) {
   return level * LEVEL_BONUS_PER;
 }
@@ -39,10 +50,13 @@ export function addXp(guildId, userId, amount) {
   u.xp = Math.max(0, u.xp + amount);
   const after = levelFromXp(u.xp);
   save();
-  if (after > before && _coinBonus) {
-    let bonus = 0;
-    for (let lvl = before + 1; lvl <= after; lvl++) bonus += levelBonus(lvl);
-    if (bonus > 0) _coinBonus(guildId, userId, bonus, after);
+  if (after > before) {
+    if (_coinBonus) {
+      let bonus = 0;
+      for (let lvl = before + 1; lvl <= after; lvl++) bonus += levelBonus(lvl);
+      if (bonus > 0) _coinBonus(guildId, userId, bonus, after);
+    }
+    if (_levelUp) _levelUp(guildId, userId, after);
   }
   return { gained: amount, xp: u.xp, level: after, levelUp: after > before };
 }

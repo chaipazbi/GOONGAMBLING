@@ -1,5 +1,5 @@
 // Définition de toutes les commandes slash.
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
 
 const MAX_ISSUES = 20;
 
@@ -220,4 +220,34 @@ export const commands = [
     .setDescription('Système de paris')
     .addSubcommand(buildCreer)
     .addSubcommand((s) => s.setName('liste').setDescription('Liste les paris en cours')),
+
+  new SlashCommandBuilder()
+    .setName('bienvenue')
+    .setDescription("Message de bienvenue quand un membre rejoint (admin)")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addSubcommand((c) => c.setName('salon').setDescription('Salon où poster le message').addChannelOption((o) => o.setName('salon').setDescription('Salon texte').addChannelTypes(ChannelType.GuildText).setRequired(true)))
+    .addSubcommand((c) => c.setName('message').setDescription('Texte du message').addStringOption((o) => o.setName('texte').setDescription('Variables : {membre} {pseudo} {serveur} {membres}').setRequired(true)))
+    .addSubcommand((c) => c.setName('image').setDescription("Image du message (lien Discord/Imgur, ou 'aucune')").addStringOption((o) => o.setName('url').setDescription("Lien de l'image, ou 'aucune' pour retirer").setRequired(true)))
+    .addSubcommand((c) => c.setName('activer').setDescription('Activer les messages de bienvenue'))
+    .addSubcommand((c) => c.setName('desactiver').setDescription('Désactiver les messages de bienvenue'))
+    .addSubcommand((c) => c.setName('apercu').setDescription('Voir un aperçu du message')),
+
+  new SlashCommandBuilder()
+    .setName('aurevoir')
+    .setDescription("Message d'au revoir quand un membre part (admin)")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addSubcommand((c) => c.setName('salon').setDescription('Salon où poster le message').addChannelOption((o) => o.setName('salon').setDescription('Salon texte').addChannelTypes(ChannelType.GuildText).setRequired(true)))
+    .addSubcommand((c) => c.setName('message').setDescription('Texte du message').addStringOption((o) => o.setName('texte').setDescription('Variables : {membre} {pseudo} {serveur} {membres}').setRequired(true)))
+    .addSubcommand((c) => c.setName('image').setDescription("Image du message (lien Discord/Imgur, ou 'aucune')").addStringOption((o) => o.setName('url').setDescription("Lien de l'image, ou 'aucune' pour retirer").setRequired(true)))
+    .addSubcommand((c) => c.setName('activer').setDescription("Activer les messages d'au revoir"))
+    .addSubcommand((c) => c.setName('desactiver').setDescription("Désactiver les messages d'au revoir"))
+    .addSubcommand((c) => c.setName('apercu').setDescription('Voir un aperçu du message')),
+
+  new SlashCommandBuilder()
+    .setName('niveaux')
+    .setDescription('Notifications de montée de niveau (admin)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addSubcommand((c) => c.setName('salon').setDescription('Salon où annoncer les montées de niveau').addChannelOption((o) => o.setName('salon').setDescription('Salon texte').addChannelTypes(ChannelType.GuildText).setRequired(true)))
+    .addSubcommand((c) => c.setName('activer').setDescription('Activer les annonces de niveau'))
+    .addSubcommand((c) => c.setName('desactiver').setDescription('Désactiver les annonces de niveau')),
 ].map((c) => c.toJSON());

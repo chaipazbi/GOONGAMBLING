@@ -25,6 +25,7 @@ function defaultUser() {
     lastLoss: null,
     missions: null,
     itemBuys: {},
+    lastMsgXp: 0,
     autoDaily: null,
     lastAutoDate: null,
     stats: {
@@ -63,6 +64,7 @@ function migrateUser(u) {
   u.items ??= {};
   u.buffs ??= {};
   u.itemBuys ??= {};
+  u.lastMsgXp ??= 0;
   u.stats ??= {};
   for (const k of Object.keys(d.stats)) u.stats[k] ??= 0;
   u.casino ??= {};
@@ -153,6 +155,25 @@ export function getData() {
 export function ensureGuild(guildId) {
   data.guilds[guildId] ??= { users: {}, bets: {}, nextBetId: 1 };
   return data.guilds[guildId];
+}
+
+export function getSettings(guildId) {
+  const g = ensureGuild(guildId);
+  g.settings ??= {};
+  g.settings.welcome ??= {
+    enabled: false,
+    channelId: null,
+    message: 'Bienvenue {membre} sur **{serveur}** ! 🎉 Tu es le {membres}e membre.',
+    imageUrl: null,
+  };
+  g.settings.goodbye ??= {
+    enabled: false,
+    channelId: null,
+    message: '{pseudo} a quitté **{serveur}**. À bientôt 👋',
+    imageUrl: null,
+  };
+  g.settings.levelup ??= { enabled: false, channelId: null };
+  return g.settings;
 }
 
 export function ensureUser(guildId, userId) {

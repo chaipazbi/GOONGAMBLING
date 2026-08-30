@@ -9,7 +9,7 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import { config, money } from './config.js';
-import { ensureUser, save, getData, recordCasino } from './store.js';
+import { ensureUser, save, getData, recordCasino, getSettings } from './store.js';
 import * as eco from './economy.js';
 import * as L from './levels.js';
 import * as B from './bets.js';
@@ -25,8 +25,18 @@ import * as xui from './extra-ui.js';
 import * as BJ from './blackjack.js';
 import * as R from './roulette.js';
 import * as H from './horserace.js';
+import * as social from './social.js';
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers, // arrivées / départs (privilégié)
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent, // longueur des messages pour l'XP (privilégié)
+  ],
+});
+
+// Anti-spam XP message : dernier gain par utilisateur (en mémoire, doublé par lastMsgXp).
 
 // Parties/lobbies en mémoire (clé = id du message du jeu).
 const bjGames = new Map();
@@ -40,6 +50,7 @@ client.once(Events.ClientReady, (c) => {
   console.log(`   Serveurs : ${c.guilds.cache.size}`);
   startScheduler(client);
   L.setCoinBonusHandler((g, u, amt) => eco.addBalance(g, u, amt));
+  L.setLevelUpHandler((g, u, lvl) => notifyLevelUp(g, u, lvl).catch(() => {}));
 });
 
 const priv = (i, content) => i.reply({ content, ephemeral: true });
@@ -115,6 +126,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
       case 'slots':      return await interaction.reply({ ...xui.slotsMenu(), ephemeral: true });
       case 'objets':     return await cmdObjets(interaction);
       case 'missions':   return await cmdMissions(interaction);
+      case 'bienvenue':  return await cmdSocial(interaction, 'welcome');
+      case 'aurevoir':   return await cmdSocial(interaction, 'goodbye');
+      case 'niveaux':    return await cmdNiveaux(interaction);
       case 'pari':       return await cmdPari(interaction);
     }
   } catch (err) {
@@ -1204,6 +1218,133 @@ async function pariListe(interaction) {
       },
     ],
   });
+}
+
+// ============ ÉVÉNEMENTS : BIENVENUE / AU REVOIR / XP MESSAGE ============
+
+client.on(Events.GuildMemberAdd, async (member) => {
+  try {
+    const st = getSettings(member.guild.id).welcome;
+    if (!st.enabled || !st.channelId) return;
+    const ch = await client.channels.fetch(st.channelId).catch(() => null);
+    if (!ch) return;
+    await ch.send(social.buildJoinPayload(st, member, member.guild));
+  } catch (e) {
+    console.error('Bienvenue :', e.message);
+  }
+});
+
+client.on(Events.GuildMemberRemove, async (member) => {
+  try {
+    const st = getSettings(member.guild.id).goodbye;
+    if (!st.enabled || !st.channelId) return;
+    const ch = await client.channels.fetch(st.channelId).catch(() => null);
+    if (!ch) return;
+    await ch.send(social.buildLeavePayload(st, member, member.guild));
+  } catch (e) {
+    console.error('Au revoir :', e.message);
+  }
+});
+
+client.on(Events.MessageCreate, async (message) => {
+  try {
+    if (!message.guild || message.author.bot) return;
+    const g = message.guild.id;
+    const userId = message.author.id;
+    const u = ensureUser(g, userId);
+    const now = Date.now();
+    // Anti-spam : un gain d'XP au maximum toutes les MSG_XP_COOLDOWN secondes.
+    if (now - (u.lastMsgXp || 0) < config.msgXpCooldown * 1000) return;
+    u.lastMsgXp = now;
+    const xp = L.messageXp(message.content?.length || 0, {
+      min: config.msgXpMin,
+      max: config.msgXpMax,
+      charDiv: config.msgXpCharDiv,
+    });
+    if (xp > 0) L.addXp(g, userId, xp); // déclenche bonus de niveau + notif éventuelle
+    else save();
+  } catch (e) {
+    console.error('XP message :', e.message);
+  }
+});
+
+async function notifyLevelUp(guildId, userId, level) {
+  const st = getSettings(guildId).levelup;
+  if (!st.enabled || !st.channelId) return;
+  const ch = await client.channels.fetch(st.channelId).catch(() => null);
+  if (!ch) return;
+  await ch.send(`🆙 <@${userId}> vient de passer **niveau ${level}** ! GG 🎉`);
+}
+
+// ============ COMMANDES : BIENVENUE / AU REVOIR / NIVEAUX ============
+
+async function cmdSocial(interaction, kind) {
+  const sub = interaction.options.getSubcommand();
+  const settings = getSettings(interaction.guildId);
+  const st = settings[kind];
+  const nom = kind === 'welcome' ? 'bienvenue' : 'au revoir';
+
+  if (sub === 'salon') {
+    st.channelId = interaction.options.getChannel('salon').id;
+    save();
+    return priv(interaction, `📍 Salon de ${nom} défini sur <#${st.channelId}>.`);
+  }
+  if (sub === 'message') {
+    st.message = interaction.options.getString('texte');
+    save();
+    return priv(interaction, `✏️ Message de ${nom} enregistré.
+Variables dispo : \`{membre}\` \`{pseudo}\` \`{serveur}\` \`{membres}\`.`);
+  }
+  if (sub === 'image') {
+    const url = interaction.options.getString('url');
+    if (/^(aucune|none|off|retirer)$/i.test(url.trim())) {
+      st.imageUrl = null;
+      save();
+      return priv(interaction, '🖼️ Image retirée.');
+    }
+    if (!social.isValidImageUrl(url)) {
+      return priv(interaction, "❌ Lien invalide. Donne un lien commençant par http(s) (Discord ou Imgur), ou `aucune` pour retirer.");
+    }
+    st.imageUrl = url.trim();
+    save();
+    return priv(interaction, '🖼️ Image enregistrée.');
+  }
+  if (sub === 'activer') {
+    if (!st.channelId) return priv(interaction, `⚠️ Définis d'abord un salon avec \`/${kind === 'welcome' ? 'bienvenue' : 'aurevoir'} salon\`.`);
+    st.enabled = true;
+    save();
+    return priv(interaction, `✅ Messages de ${nom} activés.`);
+  }
+  if (sub === 'desactiver') {
+    st.enabled = false;
+    save();
+    return priv(interaction, `⛔ Messages de ${nom} désactivés.`);
+  }
+  if (sub === 'apercu') {
+    const payload = social.previewPayload(kind === 'welcome' ? 'join' : 'leave', st, interaction.member, interaction.guild);
+    return interaction.reply(payload);
+  }
+}
+
+async function cmdNiveaux(interaction) {
+  const sub = interaction.options.getSubcommand();
+  const st = getSettings(interaction.guildId).levelup;
+  if (sub === 'salon') {
+    st.channelId = interaction.options.getChannel('salon').id;
+    save();
+    return priv(interaction, `📍 Les montées de niveau seront annoncées dans <#${st.channelId}>.`);
+  }
+  if (sub === 'activer') {
+    if (!st.channelId) return priv(interaction, "⚠️ Définis d'abord un salon avec `/niveaux salon`.");
+    st.enabled = true;
+    save();
+    return priv(interaction, '✅ Annonces de niveau activées.');
+  }
+  if (sub === 'desactiver') {
+    st.enabled = false;
+    save();
+    return priv(interaction, '⛔ Annonces de niveau désactivées.');
+  }
 }
 
 client.login(config.token);
