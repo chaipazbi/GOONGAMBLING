@@ -173,6 +173,7 @@ export function getSettings(guildId) {
     imageUrl: null,
   };
   g.settings.levelup ??= { enabled: false, channelId: null };
+  g.settings.autoRoleIds ??= [];
   return g.settings;
 }
 

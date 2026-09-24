@@ -127,6 +127,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       case 'objets':     return await cmdObjets(interaction);
       case 'missions':   return await cmdMissions(interaction);
       case 'bienvenue':  return await cmdSocial(interaction, 'welcome');
+      case 'roles-arrivee': return await cmdRolesArrivee(interaction);
       case 'aurevoir':   return await cmdSocial(interaction, 'goodbye');
       case 'niveaux':    return await cmdNiveaux(interaction);
       case 'pari':       return await cmdPari(interaction);
@@ -1223,6 +1224,22 @@ async function pariListe(interaction) {
 // ============ ÉVÉNEMENTS : BIENVENUE / AU REVOIR / XP MESSAGE ============
 
 client.on(Events.GuildMemberAdd, async (member) => {
+  const roleIds = getSettings(member.guild.id).autoRoleIds;
+  if (roleIds.length) {
+    try {
+      const me = member.guild.members.me ?? await member.guild.members.fetchMe();
+      if (!me.permissions.has(PermissionFlagsBits.ManageRoles)) throw new Error('permission Gérer les rôles manquante');
+      for (const roleId of roleIds) {
+        const role = await member.guild.roles.fetch(roleId).catch(() => null);
+        if (!role || !role.editable) {
+          console.warn(`Rôle d’arrivée indisponible ou non attribuable : ${roleId} (${member.guild.id})`);
+          continue;
+        }
+        try { await member.roles.add(role, 'Rôle automatique à l’arrivée'); }
+        catch (e) { console.error(`Attribution du rôle ${roleId} :`, e); }
+      }
+    } catch (e) { console.error('Rôles à l’arrivée :', e); }
+  }
   try {
     const st = getSettings(member.guild.id).welcome;
     if (!st.enabled || !st.channelId) return;
@@ -1277,6 +1294,35 @@ async function notifyLevelUp(guildId, userId, level) {
 }
 
 // ============ COMMANDES : BIENVENUE / AU REVOIR / NIVEAUX ============
+
+async function cmdRolesArrivee(interaction) {
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageRoles)) {
+    return priv(interaction, '❌ Permission Gérer les rôles requise.');
+  }
+  const sub = interaction.options.getSubcommand();
+  const ids = getSettings(interaction.guildId).autoRoleIds;
+  if (sub === 'liste') return priv(interaction, ids.length ? `Rôles à l’arrivée : ${ids.map((id) => `<@&${id}>`).join(', ')}` : 'Aucun rôle automatique configuré.');
+  if (sub === 'vider') {
+    ids.length = 0;
+    save();
+    return priv(interaction, '✅ Liste des rôles à l’arrivée vidée.');
+  }
+  const role = interaction.options.getRole('role');
+  if (sub === 'retirer') {
+    const index = ids.indexOf(role.id);
+    if (index === -1) return priv(interaction, 'Ce rôle ne figure pas dans la liste.');
+    ids.splice(index, 1);
+    save();
+    return priv(interaction, `✅ ${role} retiré des rôles à l’arrivée.`);
+  }
+  if (ids.includes(role.id)) return priv(interaction, 'Ce rôle figure déjà dans la liste.');
+  const me = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
+  if (!me.permissions.has(PermissionFlagsBits.ManageRoles)) return priv(interaction, '❌ Le bot a besoin de la permission Gérer les rôles.');
+  if (!role.editable) return priv(interaction, '❌ Le bot ne peut pas attribuer ce rôle. Place son rôle au-dessus du rôle choisi et vérifie que celui-ci n’est pas géré par une intégration.');
+  ids.push(role.id);
+  save();
+  return priv(interaction, `✅ ${role} sera attribué aux nouveaux membres. Ajoute d’autres rôles avec la même commande.`);
+}
 
 async function cmdSocial(interaction, kind) {
   const sub = interaction.options.getSubcommand();

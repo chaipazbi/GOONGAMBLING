@@ -222,6 +222,15 @@ export const commands = [
     .addSubcommand((s) => s.setName('liste').setDescription('Liste les paris en cours')),
 
   new SlashCommandBuilder()
+    .setName('roles-arrivee')
+    .setDescription("Rôles attribués automatiquement aux nouveaux membres (admin)")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+    .addSubcommand((c) => c.setName('ajouter').setDescription('Ajouter un rôle à attribuer').addRoleOption((o) => o.setName('role').setDescription('Rôle à ajouter').setRequired(true)))
+    .addSubcommand((c) => c.setName('retirer').setDescription('Retirer un rôle de la liste').addRoleOption((o) => o.setName('role').setDescription('Rôle à retirer').setRequired(true)))
+    .addSubcommand((c) => c.setName('liste').setDescription('Voir les rôles attribués à l’arrivée'))
+    .addSubcommand((c) => c.setName('vider').setDescription('Désactiver tous les rôles automatiques')),
+
+  new SlashCommandBuilder()
     .setName('bienvenue')
     .setDescription("Message de bienvenue quand un membre rejoint (admin)")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
