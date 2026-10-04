@@ -174,6 +174,7 @@ export function getSettings(guildId) {
   };
   g.settings.levelup ??= { enabled: false, channelId: null };
   g.settings.autoRoleIds ??= [];
+  g.settings.tracker ??= { channelId: null, players: {} };
   return g.settings;
 }
 

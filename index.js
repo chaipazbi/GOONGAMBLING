@@ -26,6 +26,7 @@ import * as BJ from './blackjack.js';
 import * as R from './roulette.js';
 import * as H from './horserace.js';
 import * as social from './social.js';
+import { handleTracker, startTracker } from './tracker.js';
 
 const client = new Client({
   intents: [
@@ -49,6 +50,7 @@ client.once(Events.ClientReady, (c) => {
   console.log(`   Monnaie : ${config.currencyName} (${config.currencySymbol})`);
   console.log(`   Serveurs : ${c.guilds.cache.size}`);
   startScheduler(client);
+  startTracker(client);
   L.setCoinBonusHandler((g, u, amt) => eco.addBalance(g, u, amt));
   L.setLevelUpHandler((g, u, lvl) => notifyLevelUp(g, u, lvl).catch(() => {}));
 });
@@ -128,6 +130,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       case 'missions':   return await cmdMissions(interaction);
       case 'bienvenue':  return await cmdSocial(interaction, 'welcome');
       case 'roles-arrivee': return await cmdRolesArrivee(interaction);
+      case 'tracker': return await handleTracker(interaction);
       case 'aurevoir':   return await cmdSocial(interaction, 'goodbye');
       case 'niveaux':    return await cmdNiveaux(interaction);
       case 'pari':       return await cmdPari(interaction);

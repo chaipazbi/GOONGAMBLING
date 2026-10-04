@@ -17,6 +17,20 @@ function buildCreer(s) {
 
 export const commands = [
   new SlashCommandBuilder()
+    .setName('tracker')
+    .setDescription('Suivre ses parties League of Legends sur EUW')
+    .setDMPermission(false)
+    .addSubcommand((c) => c.setName('salon').setDescription('Définir le salon du suivi (Gérer le serveur requis)').addChannelOption((o) => o.setName('salon').setDescription('Salon des annonces').addChannelTypes(ChannelType.GuildText).setRequired(true)))
+    .addSubcommand((c) => c.setName('lier').setDescription('Associer son compte LoL EUW et publier ses prochaines parties')
+      .addStringOption((o) => o.setName('riot-id').setDescription('Ton Riot ID : Pseudo#TAG').setMaxLength(100).setRequired(true))
+      .addBooleanOption((o) => o.setName('consentement').setDescription('Ce compte est le mien et j’accepte la publication de mes résultats').setRequired(true)))
+    .addSubcommand((c) => c.setName('delier').setDescription('Dissocier son compte et arrêter le suivi'))
+    .addSubcommand((c) => c.setName('activer').setDescription('Reprendre le suivi de ses prochaines parties'))
+    .addSubcommand((c) => c.setName('desactiver').setDescription('Mettre son suivi en pause'))
+    .addSubcommand((c) => c.setName('statut').setDescription('Voir son compte, son suivi et sa partie en cours'))
+    .addSubcommand((c) => c.setName('derniere-partie').setDescription('Voir le résultat et le K/D/A de sa dernière partie')),
+
+  new SlashCommandBuilder()
     .setName('solde')
     .setDescription("Affiche ton solde (ou celui d'un membre)")
     .addUserOption((o) => o.setName('membre').setDescription('Le membre à consulter')),
