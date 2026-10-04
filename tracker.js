@@ -2,8 +2,27 @@ import { PermissionFlagsBits } from 'discord.js';
 import { config } from './config.js';
 import { getSettings, getData, save } from './store.js';
 import { createRiotApi, matchEmbed, pollPlayer } from './riot-api.js';
+import { statsEmbed, historyEmbed } from './tracker-stats.js';
 
 const api = createRiotApi({ key: config.riotApiKey });
+// Cache temporaire et borné pour les consultations répétées de résultats immuables.
+const matchCache = new Map();
+async function recentMatches(puuid, count) {
+  const ids = await api.history(puuid, count);
+  const matches = [];
+  for (const id of ids) {
+    let match = matchCache.get(id);
+    if (!match) {
+      match = await api.match(id);
+      if (match) {
+        matchCache.set(id, match);
+        if (matchCache.size > 300) matchCache.delete(matchCache.keys().next().value);
+      }
+    }
+    if (match) matches.push(match);
+  }
+  return matches;
+}
 const disclaimer = 'Ce suivi n’est pas approuvé par Riot Games et ne reflète pas les opinions de Riot Games. Riot Games et ses propriétés sont des marques de Riot Games, Inc.';
 const reply = (i, content) => i.reply({ content, ephemeral: true, allowedMentions: { parse: [] } });
 
@@ -77,6 +96,15 @@ async function runTrackerCommand(i) {
   }
   if (!player) return reply(i, 'Associe d’abord ton compte avec `/tracker lier`.');
   await i.deferReply({ ephemeral: true });
+  if (sub === 'stats' || sub === 'historique') {
+    const count = i.options.getInteger('nombre') ?? (sub === 'stats' ? 20 : 5);
+    const matches = await recentMatches(player.puuid, count);
+    if (!matches.length) return i.editReply('Aucune partie récente disponible.');
+    const embed = sub === 'stats'
+      ? statsEmbed(matches, player.puuid, player.riotId, count)
+      : historyEmbed(matches, player.puuid, player.riotId, count);
+    return i.editReply({ embeds: [embed], allowedMentions: { parse: [] } });
+  }
   if (sub === 'derniere-partie') {
     const ids = await api.history(player.puuid);
     if (!ids.length) return i.editReply('Aucune partie récente disponible.');

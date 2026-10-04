@@ -39,7 +39,7 @@ export function createRiotApi({ key, fetchImpl = globalThis.fetch, now = Date.no
     account: (name, tag) => request('europe', `/riot/account/v1/accounts/by-riot-id/${encode(name)}/${encode(tag)}`),
     summoner: (id) => request('euw1', `/lol/summoner/v4/summoners/by-puuid/${encode(id)}`),
     active: (id) => request('euw1', `/lol/spectator/v5/active-games/by-summoner/${encode(id)}`, { optional: true }),
-    history: (id) => request('europe', `/lol/match/v5/matches/by-puuid/${encode(id)}/ids?count=10`),
+    history: (id, count = 10) => request('europe', `/lol/match/v5/matches/by-puuid/${encode(id)}/ids?count=${Math.min(50, Math.max(1, Math.trunc(count)))}`),
     match: (id) => request('europe', `/lol/match/v5/matches/${encode(id)}`, { optional: true }),
   };
 }

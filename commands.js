@@ -28,6 +28,10 @@ export const commands = [
     .addSubcommand((c) => c.setName('activer').setDescription('Reprendre le suivi de ses prochaines parties'))
     .addSubcommand((c) => c.setName('desactiver').setDescription('Mettre son suivi en pause'))
     .addSubcommand((c) => c.setName('statut').setDescription('Voir son compte, son suivi et sa partie en cours'))
+    .addSubcommand((c) => c.setName('stats').setDescription('K/D, KDA, victoires et champions sur tes parties récentes')
+      .addIntegerOption((o) => o.setName('nombre').setDescription('Nombre de parties à analyser (20 par défaut, maximum 50)').setMinValue(1).setMaxValue(50)))
+    .addSubcommand((c) => c.setName('historique').setDescription('Résultats, champions et K/D/A de tes dernières parties')
+      .addIntegerOption((o) => o.setName('nombre').setDescription('Nombre de parties (5 par défaut, maximum 10)').setMinValue(1).setMaxValue(10)))
     .addSubcommand((c) => c.setName('derniere-partie').setDescription('Voir le résultat et le K/D/A de sa dernière partie')),
 
   new SlashCommandBuilder()

@@ -25,6 +25,11 @@ Les autres commandes du bot continuent à fonctionner.
   Le joueur déclare qu’il s’agit de son compte : il ne s’agit pas d’une authentification
   Riot Sign On, et la propriété du compte n’est pas vérifiée.
 - /tracker statut : affiche le compte, le salon, le suivi et la partie en cours.
+- /tracker stats nombre:20 : K/D, KDA, taux de victoire et cinq champions les plus
+  joués sur les parties récentes (1 à 50, 20 par défaut). Tous modes confondus ;
+  remakes exclus. Ce n’est pas une statistique de toute la carrière.
+- /tracker historique nombre:5 : les dernières parties avec résultat, champion,
+  mode, durée, date relative et K/D/A (1 à 10, 5 par défaut).
 - /tracker derniere-partie : résultat, champion, K/D/A, durée, mode et farm.
 - /tracker desactiver : suspend son suivi.
 - /tracker activer : reprend le suivi sans publier les parties de la pause.
@@ -40,6 +45,11 @@ sa fin. On consulte les 10 matchs les plus récents : après une longue interrup
 les matchs plus anciens peuvent être manqués. Les parties en dehors d’EUW ne sont
 pas couvertes.
 
+Les consultations de statistiques peuvent prendre plus d’une minute, selon le
+nombre de matchs et les autres appels en cours. Un cache limité à 300 résultats
+en mémoire accélère les consultations répétées ; aucune donnée persistante
+supplémentaire n’est ajoutée.
+
 Les identifiants de comptes et de matchs publiés sont enregistrés dans data.json.
 Après un redémarrage normal, les annonces déjà enregistrées ne sont pas répétées.
 Un arrêt brutal entre l’envoi Discord et la sauvegarde peut exceptionnellement
@@ -49,7 +59,7 @@ Les notifications ne déclenchent pas de mention @everyone ou de ping de rôle.
 ## Mise à jour du droplet
 
 Pousser sur GitHub les fichiers modifiés : index.js, commands.js, config.js,
-store.js, .env.example. Ajouter riot-api.js, tracker.js, TRACKER-LOL.md et tests/.
+store.js, .env.example. Ajouter riot-api.js, tracker.js, tracker-stats.js, TRACKER-LOL.md et tests/.
 Ne pas remplacer ni committer le .env ou data.json du serveur.
 
 Depuis le droplet (attendre que les jeux de casino en cours soient terminés,
@@ -65,7 +75,7 @@ car ces jeux existants sont conservés uniquement en mémoire) :
 
 Ajouter RIOT_API_KEY, enregistrer et quitter nano, puis :
 
-    node --test tests/tracker.test.js
+    node --test tests/*.test.js
     npm run deploy
     systemctl start bot-paris
     systemctl status bot-paris
@@ -78,7 +88,7 @@ Le ZIP n’est pas envoyé automatiquement sur GitHub.
 ## Validation
 
 Tous les fichiers JavaScript vérifiés avec node --check.
-Six tests automatisés avec réponses Riot simulées : début/fin, reprise d’état,
+Neuf tests automatisés avec réponses Riot simulées : début/fin, reprise d’état,
 résultats retardés, échec d’envoi, désassociation, erreurs 404/403 et limite 429.
 Aucune connexion réelle Riot/Discord testée sans les identifiants du déploiement.
 Le premier test réel consiste à lier un compte EUW, consulter /tracker statut,
@@ -90,3 +100,9 @@ Ce produit n’est pas approuvé par Riot Games et ne reflète pas les opinions 
 Riot Games ou des personnes officiellement impliquées dans la production ou la
 gestion des propriétés de Riot Games. Riot Games et ses propriétés sont des
 marques ou des marques déposées de Riot Games, Inc.
+
+## Mise à jour depuis la première version du suivi
+
+Remplacer commands.js, riot-api.js, tracker.js et TRACKER-LOL.md.
+Ajouter tracker-stats.js et tests/tracker-stats.test.js.
+Le .env, la clé Riot, les comptes liés et les réglages sont conservés.
