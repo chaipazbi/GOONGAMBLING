@@ -1,9 +1,9 @@
 # Valorant : statistiques et parties terminées
 
 Le suivi utilise HenrikDev, un fournisseur indépendant non officiel.
-Europe / PC uniquement. La clé Riot existante est utilisée lors de la liaison
-pour résoudre le Riot ID ; HenrikDev fournit l’historique et le classement.
-Les deux clés doivent rester dans le .env du droplet, jamais sur GitHub.
+Europe / PC uniquement. HenrikDev résout le Riot ID et fournit l'identifiant
+Valorant, l’historique et le classement. La clé HenrikDev doit rester dans le
+.env du droplet, jamais sur GitHub.
 
 ## Configuration
 
@@ -11,7 +11,7 @@ Créer une clé HenrikDev via https://api.henrikdev.xyz/dashboard/ puis ajouter 
 
     HENRIK_API_KEY=ta_cle_henrikdev
 
-Conserver RIOT_API_KEY pour LoL et la résolution des comptes Riot. Redémarrer le
+Conserver RIOT_API_KEY pour LoL ; Valorant utilise seulement HENRIK_API_KEY. Redémarrer le
 bot après toute modification des clés. Aucune nouvelle dépendance npm.
 
 ## Utilisation
@@ -69,6 +69,17 @@ l’indisponibilité des données au lieu de fabriquer des statistiques.
 
 ## Fichiers de cette mise à jour
 
+### Correctif de liaison (erreur 400)
+
+Si la version Valorant est déjà installée, remplacer seulement valorant-api.js,
+valorant-tracker.js, tests/valorant.test.js et ce document. La liaison utilise
+maintenant /valorant/v2/account/{name}/{tag} chez HenrikDev, au lieu du PUUID
+renvoyé par l'API Riot. Les refus HTTP affichent le code et le motif du fournisseur,
+en masquant la clé. Relancer Lier mon compte après le redémarrage.
+Il n'y a pas de changement des commandes Discord ni de dépendances.
+
+### Première installation Valorant
+
 Remplacer commands.js, config.js, store.js, tracker.js, .env.example et
 TRACKER-LOL.md. Ajouter valorant-api.js, valorant-tracker.js,
 TRACKER-VALORANT.md et tests/valorant.test.js.
@@ -97,10 +108,11 @@ Ajouter HENRIK_API_KEY et enregistrer, puis :
 
 ## Validation
 
-22 tests avec réponses simulées passent, ainsi que node --check sur tous les
-fichiers JavaScript. Les tests Valorant couvrent les calculs, les champs absents,
+25 tests avec réponses simulées passent. La syntaxe des deux modules modifiés
+est vérifiée avec node --check. Les tests Valorant couvrent les calculs, les champs absents,
 la pagination, la reprise de l’état,
-les échecs d’envoi et les erreurs 429/403. La connexion réelle HenrikDev/Discord
+les échecs d’envoi, la résolution du compte chez HenrikDev, le masquage de la clé
+dans une erreur 400 et les erreurs 429/403. La connexion réelle HenrikDev/Discord
 reste à vérifier sur le droplet avec la clé utilisateur. Les tests ne constituent
 pas une validation des réponses réelles pour ce compte ni une garantie de
 continuité du fournisseur.

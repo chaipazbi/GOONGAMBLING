@@ -21,7 +21,16 @@ export function createValorantApi({ key, fetchImpl = globalThis.fetch, now = Dat
         throw new Error('Limite HenrikDev atteinte : réessaie après le délai imposé.');
       }
       if (optional && response.status === 404) return null;
-      if (!response.ok) throw new Error(`HenrikDev : réponse ${response.status}. Réessaie plus tard.`);
+      if (!response.ok) {
+        // Afficher le motif du fournisseur, sans sa réponse brute ni la clé.
+        const payload = await response.json().catch(() => null);
+        const errors = Array.isArray(payload?.errors) ? payload.errors.slice(0, 3) : [];
+        const detail = errors.map((e) => {
+          const message = typeof e.message === 'string' ? e.message : '';
+          return `${Number.isInteger(e.code) ? `code ${e.code} : ` : ''}${message}`;
+        }).join(' ; ').split(key).join('[clé masquée]').replace(/[\r\n\u0000-\u001f]/g, ' ').slice(0, 350);
+        throw new Error(`HenrikDev : réponse ${response.status}${detail ? ` — ${detail}` : '.'}`);
+      }
       const payload = await response.json();
       if (payload.status && payload.status !== 200) throw new Error(`HenrikDev : données indisponibles (${payload.status}).`);
       if (payload.data === undefined) throw new Error('Format HenrikDev inattendu : données manquantes.');
@@ -30,6 +39,17 @@ export function createValorantApi({ key, fetchImpl = globalThis.fetch, now = Dat
     queue = work.catch(() => {}); return work;
   }
   return {
+    async account(name, tag) {
+      const account = await request(`/valorant/v2/account/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`);
+      if (!account || typeof account.puuid !== 'string' || !account.puuid.trim()
+        || typeof account.name !== 'string' || typeof account.tag !== 'string') {
+        throw new Error('Format HenrikDev inattendu : identifiant du compte Valorant manquant.');
+      }
+      if (typeof account.region !== 'string' || account.region.toLowerCase() !== 'eu') {
+        throw new Error('Ce suivi est configuré pour les comptes Valorant Europe (eu).');
+      }
+      return account;
+    },
     async matches(puuid, count = 10) {
       const limit = Math.min(50, Math.max(1, Number(count) || 10));
       const found = [];

@@ -65,3 +65,36 @@ test('429 respecte Retry-After et clé refusée suspend les appels', async () =>
   time = 30001; await assert.rejects(api.rank('p'), /Clé HenrikDev refusée/);
   await assert.rejects(api.rank('p'), /Clé HenrikDev refusée/); assert.equal(calls, 2);
 });
+
+test('résout le Riot ID chez HenrikDev et transmet son identifiant Valorant aux matchs', async () => {
+  const urls = [];
+  const puuid = '60325b89-7524-55be-be68-8ab3e7c0f2a3';
+  const api = createValorantApi({ key: 'FAKE', sleep: async () => {}, fetchImpl: async (url) => {
+    urls.push(url);
+    return { ok: true, status: 200, json: async () => ({ status: 200,
+      data: urls.length === 1 ? { puuid, region: 'eu', name: 'Nom / joueur', tag: 'EU#1' } : [] }) };
+  } });
+  const account = await api.account('Nom / joueur', 'EU#1');
+  await api.matches(account.puuid);
+  assert.equal(urls[0], 'https://api.henrikdev.xyz/valorant/v2/account/Nom%20%2F%20joueur/EU%231');
+  assert.ok(urls[1].includes(`/eu/pc/${puuid}?`));
+});
+
+test('un compte absent, mal formé ou hors Europe ne peut pas être associé', async () => {
+  for (const data of [null, {}, { puuid: 'p', name: 'N', tag: 'T', region: 'na' }]) {
+    const api = createValorantApi({ key: 'FAKE', sleep: async () => {}, fetchImpl: async () => ({
+      ok: true, status: 200, json: async () => ({ status: 200, data }),
+    }) });
+    await assert.rejects(api.account('N', 'T'), /compte Valorant manquant|Europe/);
+  }
+});
+
+test('une erreur 400 conserve le motif HenrikDev et masque la clé', async () => {
+  const api = createValorantApi({ key: 'SECRET', sleep: async () => {}, fetchImpl: async () => ({
+    ok: false, status: 400, json: async () => ({ errors: [{ code: 1, message: 'Invalid UUID SECRET' }] }),
+  }) });
+  await assert.rejects(api.account('N', 'T'), (err) => {
+    assert.match(err.message, /réponse 400.*code 1.*Invalid UUID/);
+    assert.ok(!err.message.includes('SECRET')); return true;
+  });
+});

@@ -6,7 +6,7 @@ import { createValorantApi, valorantRows, valorantStatsEmbed, valorantHistoryEmb
 const api = createValorantApi({ key: config.henrikApiKey });
 const reply = (i, content) => i.reply({ content, ephemeral: true, allowedMentions: { parse: [] } });
 
-export async function runValorantCommand(i, options, riotApi) {
+export async function runValorantCommand(i, options) {
   const sub = options.getSubcommand();
   const st = getSettings(i.guildId).tracker;
   const players = st.valorant.players;
@@ -26,11 +26,11 @@ export async function runValorantCommand(i, options, riotApi) {
     const pos = riotId.lastIndexOf('#');
     if (pos <= 0 || pos === riotId.length - 1) return reply(i, 'Utilise le format Pseudo#TAG.');
     await i.deferReply({ ephemeral: true });
-    // L’API Riot déjà configurée identifie le compte ; HenrikDev fournit les matchs Valorant.
-    const account = await riotApi.account(riotId.slice(0, pos), riotId.slice(pos + 1));
+    // HenrikDev fournit l'identifiant Valorant utilisé par ses propres routes.
+    const account = await api.account(riotId.slice(0, pos), riotId.slice(pos + 1));
     const rows = valorantRows(await api.matches(account.puuid, 10), account.puuid);
     players[i.user.id] = { discordId: i.user.id, puuid: account.puuid,
-      riotId: `${account.gameName}#${account.tagLine}`, enabled: true, linkedAt: Date.now(), seen: rows.map((r) => r.id) };
+      riotId: `${account.name}#${account.tag}`, enabled: true, linkedAt: Date.now(), seen: rows.map((r) => r.id) };
     save();
     return i.editReply(`Compte Valorant Europe/PC associé : ${players[i.user.id].riotId}.\nLes nouvelles parties commencées après cette liaison seront annoncées après leur fin, dès leur disponibilité.\nTu déclares que ce compte est le tien et acceptes la publication de ses résultats. L’association ne vérifie pas la propriété par connexion Riot.\nCe suivi utilise HenrikDev, un service tiers non officiel, et n’est pas approuvé par Riot Games. Riot Games et ses propriétés sont des marques de Riot Games, Inc.`);
   }
