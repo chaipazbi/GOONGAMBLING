@@ -8,6 +8,7 @@ export const config = {
   guildId: process.env.GUILD_ID || null,
   ownerId: process.env.OWNER_ID || null,
   riotApiKey: process.env.RIOT_API_KEY || null,
+  henrikApiKey: process.env.HENRIK_API_KEY || null,
 
   currencyName: process.env.CURRENCY_NAME || 'GoonCoins',
   currencySymbol: process.env.CURRENCY_SYMBOL || '🪙',

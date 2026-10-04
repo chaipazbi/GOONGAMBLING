@@ -15,24 +15,30 @@ function buildCreer(s) {
   return s;
 }
 
+function gameChoice(command) {
+  return command.addStringOption((o) => o.setName('jeu').setDescription('Jeu à consulter (LoL par défaut)')
+    .addChoices({ name: 'League of Legends', value: 'lol' }, { name: 'Valorant', value: 'valorant' }));
+}
+
 export const commands = [
   new SlashCommandBuilder()
     .setName('tracker')
-    .setDescription('Suivre ses parties League of Legends sur EUW')
+    .setDescription('Statistiques et suivi League of Legends et Valorant')
     .setDMPermission(false)
+    .addSubcommand((c) => c.setName('menu').setDescription('Choisir le jeu et les actions avec des boutons'))
     .addSubcommand((c) => c.setName('salon').setDescription('Définir le salon du suivi (Gérer le serveur requis)').addChannelOption((o) => o.setName('salon').setDescription('Salon des annonces').addChannelTypes(ChannelType.GuildText).setRequired(true)))
-    .addSubcommand((c) => c.setName('lier').setDescription('Associer son compte LoL EUW et publier ses prochaines parties')
+    .addSubcommand((c) => gameChoice(c.setName('lier').setDescription('Associer son compte et publier ses prochaines parties')
       .addStringOption((o) => o.setName('riot-id').setDescription('Ton Riot ID : Pseudo#TAG').setMaxLength(100).setRequired(true))
-      .addBooleanOption((o) => o.setName('consentement').setDescription('Ce compte est le mien et j’accepte la publication de mes résultats').setRequired(true)))
-    .addSubcommand((c) => c.setName('delier').setDescription('Dissocier son compte et arrêter le suivi'))
-    .addSubcommand((c) => c.setName('activer').setDescription('Reprendre le suivi de ses prochaines parties'))
-    .addSubcommand((c) => c.setName('desactiver').setDescription('Mettre son suivi en pause'))
-    .addSubcommand((c) => c.setName('statut').setDescription('Voir son compte, son suivi et sa partie en cours'))
-    .addSubcommand((c) => c.setName('stats').setDescription('K/D, KDA, victoires et champions sur tes parties récentes')
-      .addIntegerOption((o) => o.setName('nombre').setDescription('Nombre de parties à analyser (20 par défaut, maximum 50)').setMinValue(1).setMaxValue(50)))
-    .addSubcommand((c) => c.setName('historique').setDescription('Résultats, champions et K/D/A de tes dernières parties')
-      .addIntegerOption((o) => o.setName('nombre').setDescription('Nombre de parties (5 par défaut, maximum 10)').setMinValue(1).setMaxValue(10)))
-    .addSubcommand((c) => c.setName('derniere-partie').setDescription('Voir le résultat et le K/D/A de sa dernière partie')),
+      .addBooleanOption((o) => o.setName('consentement').setDescription('Ce compte est le mien et j’accepte la publication de mes résultats').setRequired(true))))
+    .addSubcommand((c) => gameChoice(c.setName('delier').setDescription('Dissocier son compte et arrêter le suivi')))
+    .addSubcommand((c) => gameChoice(c.setName('activer').setDescription('Reprendre le suivi de ses prochaines parties')))
+    .addSubcommand((c) => gameChoice(c.setName('desactiver').setDescription('Mettre son suivi en pause')))
+    .addSubcommand((c) => gameChoice(c.setName('statut').setDescription('Voir son compte et son suivi')))
+    .addSubcommand((c) => gameChoice(c.setName('stats').setDescription('K/D, KDA, victoires et personnages sur tes parties récentes')
+      .addIntegerOption((o) => o.setName('nombre').setDescription('Nombre de parties à analyser (20 par défaut, maximum 50)').setMinValue(1).setMaxValue(50))))
+    .addSubcommand((c) => gameChoice(c.setName('historique').setDescription('Résultats, champions et K/D/A de tes dernières parties')
+      .addIntegerOption((o) => o.setName('nombre').setDescription('Nombre de parties (5 par défaut, maximum 10)').setMinValue(1).setMaxValue(10))))
+    .addSubcommand((c) => gameChoice(c.setName('derniere-partie').setDescription('Voir le résultat et le K/D/A de sa dernière partie'))),
 
   new SlashCommandBuilder()
     .setName('solde')
