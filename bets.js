@@ -82,7 +82,9 @@ export function oddsLabel(bet, option) {
 // ---------- Mises ----------
 
 export function placeWager(bet, userId, option, amount) {
+  if (bet.tracker && Date.now() >= bet.tracker.closeAt && bet.status === 'open') setStatus(bet, 'closed');
   if (bet.status !== 'open') return { ok: false, reason: 'ferme' };
+  if (bet.tracker?.discordId === userId) return { ok: false, reason: 'joueur_suivi' };
   if (amount < config.minWager) return { ok: false, reason: 'min' };
 
   const autre = bet.wagers.find((w) => w.userId === userId && w.option !== option);

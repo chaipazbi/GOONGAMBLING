@@ -45,6 +45,9 @@ export function betEmbed(bet) {
   if (bet.status === 'open') {
     embed.setFooter({ text: `Mise de départ de la maison : ${bet.seed} par issue` });
   }
+  if (bet.tracker) {
+    embed.addFields({ name: 'Partie suivie', value: `${bet.tracker.matchId}\nMises jusqu’à <t:${Math.floor(bet.tracker.closeAt / 1000)}:T>. Résultat automatique ; remake remboursé.` });
+  }
   if (gagnante) {
     embed.setFooter({ text: `Résultat : ${gagnante}` });
   }

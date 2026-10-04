@@ -26,7 +26,7 @@ import * as BJ from './blackjack.js';
 import * as R from './roulette.js';
 import * as H from './horserace.js';
 import * as social from './social.js';
-import { handleTracker, startTracker } from './tracker.js';
+import { handleTracker, handleTrackerButton, handleTrackerModal, startTracker } from './tracker.js';
 
 const client = new Client({
   intents: [
@@ -92,6 +92,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     if (interaction.isButton()) {
+      if (interaction.customId.startsWith('tracker:')) return await handleTrackerButton(interaction);
       if (interaction.customId.startsWith('shop:')) return await onShopButton(interaction);
       if (interaction.customId.startsWith('inv:')) return await onInventoryButton(interaction);
       if (interaction.customId.startsWith('bjtable:')) return await onBjTableButton(interaction);
@@ -105,7 +106,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return await onButton(interaction);
     }
     if (interaction.isStringSelectMenu()) return await onSelect(interaction);
-    if (interaction.isModalSubmit()) return await onModal(interaction);
+    if (interaction.isModalSubmit()) {
+      if (interaction.customId.startsWith('tracker:')) return await handleTrackerModal(interaction);
+      return await onModal(interaction);
+    }
     if (!interaction.isChatInputCommand()) return;
 
     switch (interaction.commandName) {
@@ -159,6 +163,8 @@ async function onButton(interaction) {
 }
 
 async function ouvrirModalMise(interaction, bet, optIndex) {
+  if (bet.tracker?.discordId === interaction.user.id) return priv(interaction, 'Le joueur suivi ne peut pas miser sur sa propre partie.');
+  if (bet.tracker && Date.now() >= bet.tracker.closeAt && bet.status === 'open') B.setStatus(bet, 'closed');
   if (bet.status !== 'open') return priv(interaction, "Ce pari n'accepte plus de mises.");
   const option = bet.options[optIndex];
   if (!option) return priv(interaction, 'Issue introuvable.');
@@ -311,6 +317,7 @@ async function onModal(interaction) {
 
   const res = B.placeWager(bet, userId, option, montant);
   if (!res.ok) {
+    if (res.reason === 'joueur_suivi') return priv(interaction, 'Le joueur suivi ne peut pas miser sur sa propre partie.');
     if (res.reason === 'solde') return priv(interaction, `Solde insuffisant. Tu as ${money(solde)}.`);
     if (res.reason === 'min') return priv(interaction, `Mise minimum : ${money(config.minWager)}.`);
     if (res.reason === 'autre_option') return priv(interaction, `Tu as déjà misé sur **${res.option}**.`);
