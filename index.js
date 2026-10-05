@@ -2,6 +2,7 @@ import {
   Client,
   GatewayIntentBits,
   Events,
+  Partials,
   PermissionFlagsBits,
   ActionRowBuilder,
   ModalBuilder,
@@ -27,6 +28,7 @@ import * as R from './roulette.js';
 import * as H from './horserace.js';
 import * as social from './social.js';
 import { handleTracker, handleTrackerButton, handleTrackerModal, startTracker } from './tracker.js';
+import { createProtection } from './protection.js';
 
 const client = new Client({
   intents: [
@@ -34,8 +36,14 @@ const client = new Client({
     GatewayIntentBits.GuildMembers, // arrivées / départs (privilégié)
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent, // longueur des messages pour l'XP (privilégié)
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildModeration,
+    GatewayIntentBits.GuildInvites,
+    GatewayIntentBits.GuildEmojisAndStickers,
   ],
+  partials: [Partials.Message, Partials.Channel, Partials.GuildMember],
 });
+const protection = createProtection(client);
 
 // Anti-spam XP message : dernier gain par utilisateur (en mémoire, doublé par lastMsgXp).
 
@@ -113,6 +121,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
     switch (interaction.commandName) {
+      case 'protection':
+      case 'logs':       return await protection.command(interaction);
       case 'solde':      return await cmdSolde(interaction);
       case 'daily':      return await cmdDaily(interaction);
       case 'donner':     return await cmdDonner(interaction);
@@ -1275,6 +1285,7 @@ client.on(Events.GuildMemberRemove, async (member) => {
 
 client.on(Events.MessageCreate, async (message) => {
   try {
+    if (await protection.onMessage(message)) return;
     if (!message.guild || message.author.bot) return;
     const g = message.guild.id;
     const userId = message.author.id;

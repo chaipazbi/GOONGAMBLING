@@ -1,5 +1,6 @@
 // Définition de toutes les commandes slash.
 import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
+import { protectionCommands } from './protection-commands.js';
 
 const MAX_ISSUES = 20;
 
@@ -21,6 +22,7 @@ function gameChoice(command) {
 }
 
 export const commands = [
+  ...protectionCommands,
   new SlashCommandBuilder()
     .setName('tracker')
     .setDescription('Statistiques et suivi League of Legends et Valorant')

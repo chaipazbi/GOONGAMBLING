@@ -176,6 +176,8 @@ export function getSettings(guildId) {
   g.settings.autoRoleIds ??= [];
   g.settings.tracker ??= { channelId: null, players: {} };
   g.settings.tracker.valorant ??= { players: {} };
+  g.settings.protection ??= { trapChannelId: null, logChannelId: null, imageMode: 'off', exemptRoleIds: [], images: [] };
+  g.settings.serverLogs ??= { channelId: null, enabled: false };
   return g.settings;
 }
 
