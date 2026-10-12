@@ -17,14 +17,13 @@ dans un simple `data.json`.
 | `/donner <membre> <montant>` | Transfert |
 | `/stats [membre]` | Niveau, XP, ratio V/D, pièces misées/gagnées/perdues |
 | `/classement [type]` | Top pièces (défaut) ou top niveau |
-| `/boutique` | Boutique du jour : 3 caisses à acheter |
-| `/inventaire [membre]` | Voir/ouvrir ses caisses |
+| `/boutique` | Caisses, objets et renouvellement des caisses à 5K |
+| `/inventaire [membre]` | Caisses, potions ×2, retour arrière et effets actifs |
 | `/caisses` | Probabilités de chaque caisse |
 | `/caisse donner\|retirer` | Donner/retirer des caisses (admin) |
 | `/refresh <type> [membre]` | Renouveler boutique / daily / missions / tout (admin) |
 | `/serveurs` | Liste les serveurs du bot (propriétaire, via `OWNER_ID`) |
 | `/slots` | Machine à sous (RTP ~108 %, gagnant joueur) |
-| `/objets` | Potions ×2 et retour arrière (boutique + inventaire) |
 | `/missions` | Missions du jour (objectif aléatoire, pièces + XP) |
 | `/blackjack` | Blackjack contre le croupier |
 | `/roulette` | Table de roulette (multijoueur) |
@@ -195,10 +194,10 @@ Les parties en cours vivent en mémoire (perdues si le bot redémarre en pleine 
 
 - **Machine à sous** `/slots` — 3 rouleaux, RTP ~108 %. Gains fréquents (2 symboles)
   et jackpots rares (3 symboles, 🎰 = ×60).
-- **Plafond de mise** sur tous les mini-jeux : **10 000** (`MAX_MISE_CASINO`). Les paris restent illimités.
+- **Plafond de mise** sur tous les mini-jeux : **50 000** par tirage (`MAX_MISE_CASINO`). Les paris restent illimités. Slots, roulette et chevaux : de 1 à 100 tirages payés d'avance. Blackjack : décisions manuelles conservées ; doubler respecte aussi le plafond.
 - **XP mini-jeux** : sur une **victoire**, XP = mise × taux aléatoire **1–2 %** (`XP_CASINO_MIN`/`MAX`). Défaite ou égalité = 0 XP. Pas de plafond.
 - **Retour arrière** limité à **1 achat par jour**.
-- **Objets** `/objets` — achetables en boutique + **drop** sur les victoires :
+- **Objets** achetables dans `/boutique`, utilisables dans `/inventaire` + **drop** sur les victoires :
   - 🧪 **Potion ×2 pièces** (2000) — double le **bénéfice net** du prochain gain (tous jeux + paris). Drop ~1 %.
   - 📗 **Potion ×2 XP** (1000) — double l'XP du prochain pari gagné. Drop ~2 %.
   - ⏪ **Retour arrière** (5000) — rembourse la mise de ta dernière perte. Drop ~0,5 %.
@@ -212,3 +211,19 @@ Les parties en cours vivent en mémoire (perdues si le bot redémarre en pleine 
 
 > ⚠️ Réglages dans `items.js` (prix, taux de drop), `slots.js` (symboles/gains),
 > `missions.js` (catalogue/récompenses), `levels.js` (`LEVEL_BONUS_PER`).
+
+## Bienvenue / au revoir & niveaux par message (v10)
+
+- **`/bienvenue`** et **`/aurevoir`** (admin) — message personnalisable quand un
+  membre rejoint/part. Sous-commandes : `salon`, `message`, `image`, `activer`,
+  `desactiver`, `apercu`. Variables du message : `{membre}` `{pseudo}` `{serveur}` `{membres}`.
+  L'image accepte un lien Discord ou Imgur (`aucune` pour retirer).
+- **XP par message** — chaque message rapporte de l'XP selon sa longueur
+  (`MSG_XP_MIN`..`MSG_XP_MAX`, +1 par `MSG_XP_CHARDIV` caractères), avec un
+  cooldown anti-spam (`MSG_XP_COOLDOWN`, défaut 60 s). Alimente le même niveau.
+- **`/niveaux`** (admin) — `salon` / `activer` / `desactiver` : annonce les montées
+  de niveau dans un salon (pas de MP).
+
+> ⚠️ **Intents privilégiés requis** dans le Developer Portal (onglet Bot) :
+> **Server Members Intent** (arrivées/départs) et **Message Content Intent**
+> (longueur des messages). Sans eux, le bot ne démarrera pas.

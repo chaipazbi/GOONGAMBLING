@@ -18,7 +18,7 @@ export function slotsMenu() {
     embeds: [
       new EmbedBuilder()
         .setTitle('🎰 Machine à sous')
-        .setDescription('Aligne des symboles pour gagner ! Mise, tire, et croise les doigts.')
+        .setDescription(`Aligne des symboles pour gagner ! Choisis la mise par tirage et de 1 à 100 tirages. Toute la série est payée avant de commencer.\nPlafond par tirage : ${money(config.maxMiseCasino)}.`)
         .setColor(0x9b59b6),
     ],
     components: [
@@ -76,17 +76,37 @@ export function objetsEmbed(user, member) {
 
 export function objetsComponents(user, own) {
   if (!own) return [];
+  return [...objetsShopComponents(user), ...objetsUseComponents(user)];
+}
+
+export function objetsShopComponents(user) {
   const achat = new ActionRowBuilder().addComponents(
     btn('obj:buy:potion_coins', 'Acheter ×2 pièces', ButtonStyle.Secondary, '🧪'),
     btn('obj:buy:potion_xp', 'Acheter ×2 XP', ButtonStyle.Secondary, '📗'),
     btn('obj:buy:rewind', 'Acheter Retour', ButtonStyle.Secondary, '⏪').setDisabled(!canBuy(user, 'rewind'))
   );
+  return [achat];
+}
+
+export function objetsUseComponents(user) {
   const usage = new ActionRowBuilder().addComponents(
     btn('obj:arm:potion_coins', 'Utiliser ×2 pièces', ButtonStyle.Primary, '🧪').setDisabled(itemCount(user, 'potion_coins') < 1 || hasBuff(user, 'coins2x')),
     btn('obj:arm:potion_xp', 'Utiliser ×2 XP', ButtonStyle.Primary, '📗').setDisabled(itemCount(user, 'potion_xp') < 1 || hasBuff(user, 'xp2x')),
     btn('obj:rewind', 'Retour arrière', ButtonStyle.Danger, '⏪').setDisabled(itemCount(user, 'rewind') < 1)
   );
-  return [achat, usage];
+  return [usage];
+}
+
+export function slotsSeriesEmbed(member, amount, rounds) {
+  const gain = rounds.reduce((n, r) => n + r.result.gain, 0);
+  const bonus = rounds.reduce((n, r) => n + (r.effect?.bonus || 0), 0);
+  const xp = rounds.reduce((n, r) => n + (r.effect?.xp || 0), 0);
+  const spent = amount * rounds.length;
+  const net = gain + bonus - spent;
+  const lines = rounds.slice(0, 15).map((r, i) => `${i + 1}. ${r.result.reels.join(' ')} — ${money(r.result.gain)}${r.effect?.extra ? ` · ${r.effect.extra}` : ''}`);
+  const description = `${rounds.length} tirages × ${money(amount)}\nTotal misé : ${money(spent)}\nGains rendus : ${money(gain)}\nBonus pièces : ${money(bonus)}\nBilan : **${net >= 0 ? '+' : ''}${net.toLocaleString('fr-FR')}** ${config.currencySymbol}\nXP : ${xp}\n\n` + lines.join('\n') + (rounds.length > 15 ? '\nDétail complet dans le fichier joint.' : '');
+  return new EmbedBuilder().setTitle('🎰 Résultat de ta série').setAuthor({ name: member.displayName ?? member.username })
+    .setDescription(description.slice(0, 4000)).setColor(net >= 0 ? 0x2ecc71 : 0xe74c3c);
 }
 
 // ---------------- MISSIONS ----------------

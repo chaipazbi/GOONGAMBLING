@@ -24,7 +24,7 @@ export const config = {
 
   timezone: process.env.TIMEZONE || 'Europe/Paris',
 
-  maxMiseCasino: parseInt(process.env.MAX_MISE_CASINO || '10000', 10),
+  maxMiseCasino: parseInt(process.env.MAX_MISE_CASINO || '50000', 10),
   msgXpMin: parseInt(process.env.MSG_XP_MIN || '2', 10),
   msgXpMax: parseInt(process.env.MSG_XP_MAX || '30', 10),
   msgXpCharDiv: parseInt(process.env.MSG_XP_CHARDIV || '15', 10),

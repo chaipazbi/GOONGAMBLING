@@ -108,7 +108,7 @@ export function rouletteMenu() {
         .setTitle('🎡 Roulette')
         .setDescription(
           'Lance une table : tout le monde peut venir miser, puis on fait tourner la roue.\n' +
-            'Roue européenne (0 à 36).'
+          'Roue européenne (0 à 36). Chaque pari peut couvrir de 1 à 100 tours, payés d’avance.'
         )
         .setColor(0xe74c3c),
     ],
@@ -137,7 +137,7 @@ export function rouletteLobbyEmbed(lobby) {
   const lignes = lobby.bets.map((b) => {
     const def = BET_TYPES[b.type];
     const nom = def.needsNumber ? `${def.label} ${b.number}` : def.label;
-    return `<@${b.userId}> — ${money(b.amount)} sur **${nom}**`;
+    return `<@${b.userId}> — ${b.count || 1} × ${money(b.amount)} sur **${nom}**`;
   });
   return new EmbedBuilder()
     .setTitle('🎡 Table de roulette ouverte')
@@ -179,7 +179,7 @@ export function horseMenu() {
         .setTitle('🐎 Course de chevaux')
         .setDescription(
           'Lance une course de 4 chevaux. Tout le monde peut parier sur son favori, ' +
-            'puis la course se joue.\nGain = mise × cote du cheval.'
+            'puis la course se joue.\nGain = mise × cote du cheval. Choisis de 1 à 100 courses, avec les mêmes chevaux et cotes, payées d’avance.'
         )
         .setColor(0xf39c12),
     ],
@@ -210,7 +210,7 @@ export function horseLobbyEmbed(lobby) {
     .map((h, i) => `**${i + 1}. ${h.nom}** — cote ${h.cote.toFixed(1)}`)
     .join('\n');
   const mises = lobby.bets
-    .map((b) => `<@${b.userId}> — ${money(b.amount)} sur **${lobby.race.horses[b.horse].nom}**`)
+    .map((b) => `<@${b.userId}> — ${b.count || 1} × ${money(b.amount)} sur **${lobby.race.horses[b.horse].nom}**`)
     .join('\n');
   return new EmbedBuilder()
     .setTitle('🐎 Course ouverte — les paris sont lancés !')

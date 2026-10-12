@@ -136,11 +136,11 @@ export const commands = [
 
   new SlashCommandBuilder()
     .setName('boutique')
-    .setDescription('Affiche la boutique du jour (caisses à acheter)'),
+    .setDescription('Caisses, potions et objets à acheter'),
 
   new SlashCommandBuilder()
     .setName('inventaire')
-    .setDescription('Ouvre ton inventaire de caisses')
+    .setDescription('Tes caisses, objets et effets actifs')
     .addUserOption((o) => o.setName('membre').setDescription("Voir l'inventaire d'un membre")),
 
   new SlashCommandBuilder()
@@ -231,11 +231,6 @@ export const commands = [
   new SlashCommandBuilder()
     .setName('slots')
     .setDescription('Machine à sous'),
-
-  new SlashCommandBuilder()
-    .setName('objets')
-    .setDescription('Tes objets : potions et retour arrière (boutique + inventaire)')
-    .addUserOption((o) => o.setName('membre').setDescription("Voir les objets d'un membre")),
 
   new SlashCommandBuilder()
     .setName('missions')

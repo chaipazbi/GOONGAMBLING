@@ -260,6 +260,9 @@ export function leaderboardEmbed(entries, kind) {
 // ===================== BOUTIQUE / CAISSES =====================
 import * as SHOP from './shop.js';
 import { CRATES, CRATE_REWARDS, CRATE_RIEN } from './config.js';
+import { ITEMS, itemList, hasBuff } from './items.js';
+import { objetsShopComponents, objetsUseComponents } from './extra-ui.js';
+import { shopRevision, SHOP_REFRESH_COST } from './shop-refresh.js';
 
 export function shopEmbed(user) {
   const slots = user.shop?.slots ?? [];
@@ -274,8 +277,9 @@ export function shopEmbed(user) {
     .setDescription(
       (lines.join('\n') || 'Boutique vide.') +
         `\n\n_3 caisses par jour, renouvelées à 00h00 (${config.timezone})._` +
-        `\nLes caisses achetées vont dans ton **/inventaire**.`
+        `\nRenouveler les 3 caisses : **${money(SHOP_REFRESH_COST)}**. Les caisses et objets achetés vont dans **/inventaire**.`
     )
+    .addFields({ name: 'Objets', value: Object.values(ITEMS).map((it) => `${it.emoji} **${it.nom}** — ${money(it.prix)}\n${it.desc}`).join('\n') })
     .setFooter({ text: 'Clique pour acheter. Ouvre ensuite depuis /inventaire.' })
     .setColor(0xe67e22);
 }
@@ -287,14 +291,17 @@ export function shopComponents(user) {
     const c = SHOP.crateById(s.id);
     row.addComponents(
       new ButtonBuilder()
-        .setCustomId(`shop:buy:${i}`)
+        .setCustomId(`shop:buy:${i}:${shopRevision(user)}`)
         .setLabel(`${c.nom} · ${c.prix}`)
         .setEmoji(c.emoji)
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(!!s.bought)
     );
   });
-  return slots.length ? [row] : [];
+  const refresh = new ActionRowBuilder().addComponents(new ButtonBuilder()
+    .setCustomId(`shop:reroll:${shopRevision(user)}`).setLabel('Renouveler les caisses · 5K')
+    .setStyle(ButtonStyle.Primary).setEmoji('🔄').setDisabled(user.balance < SHOP_REFRESH_COST));
+  return [...(slots.length ? [row] : []), ...objetsShopComponents(user), refresh];
 }
 
 export function inventoryEmbed(user, member) {
@@ -306,7 +313,11 @@ export function inventoryEmbed(user, member) {
 
   return new EmbedBuilder()
     .setTitle(`🎒 Inventaire de ${member.displayName ?? member.username}`)
-    .setDescription(lines.join('\n') || "Aucune caisse. Achètes-en dans la `/boutique` !")
+    .addFields(
+      { name: 'Caisses', value: lines.join('\n') || 'Aucune caisse.' },
+      { name: 'Objets', value: itemList(user).map((e) => `${ITEMS[e.id].emoji} ${ITEMS[e.id].nom} ×**${e.count}**`).join('\n') || 'Aucun objet.' },
+      { name: 'Effets actifs', value: [hasBuff(user, 'coins2x') ? '🧪 ×2 pièces armée' : null, hasBuff(user, 'xp2x') ? '📗 ×2 XP armée' : null].filter(Boolean).join(' · ') || 'Aucun.' }
+    )
     .setFooter(list.length ? { text: 'Clique sur une caisse pour l\'ouvrir.' } : null)
     .setColor(0x1abc9c);
 }
@@ -332,7 +343,7 @@ export function inventoryComponents(user, own) {
     );
   });
   if (row.components.length) rows.push(row);
-  return rows;
+  return [...rows, ...objetsUseComponents(user)];
 }
 
 // Résultat d'ouverture (public). opener = GuildMember qui a ouvert.
